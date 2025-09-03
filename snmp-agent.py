@@ -11,13 +11,13 @@ import struct
 import asyncio
 from collections import defaultdict
 
-# SNMP için gerekli importlar
-from pysnmp.hlapi.transport import udp
-from pysnmp.hlapi.v3arch.asyncio import *
+# SNMP için gerekli importlar (pysnmp 7.x sürümüne göre)
 from pysnmp.entity import config
 from pysnmp.entity.engine import SnmpEngine
 from pysnmp.entity.rfc3413.context import SnmpContext
 from pysnmp.proto.api.v2c import GetRequestPDU
+from pysnmp.carrier.asyncio.dgram import udp
+
 
 # Global variables
 buffer = bytearray()
