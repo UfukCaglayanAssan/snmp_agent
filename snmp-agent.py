@@ -14,6 +14,12 @@ import asyncio
 from collections import defaultdict
 from pysnmp.hlapi.v3arch.asyncio import *
 from pysnmp.entity import config
+from pysnmp.carrier import udp
+from pysnmp.entity.engine import SnmpEngine
+from pysnmp.entity.context import SnmpContext
+from pysnmp.proto.api import v2c
+from pysnmp.smi.rfc1902 import Integer, NoSuchObject
+from pysnmp.proto.rfc1902 import GetRequestPDU
 
 # Global variables
 buffer = bytearray()
