@@ -14,7 +14,6 @@ import asyncio
 from collections import defaultdict
 from pysnmp.hlapi.v3arch.asyncio import *
 from pysnmp.entity import config
-from pysnmp.carrier import udp
 from pysnmp.entity.engine import SnmpEngine
 from pysnmp.entity.context import SnmpContext
 from pysnmp.proto.api import v2c
@@ -439,8 +438,7 @@ async def get_agent():
         # Transport ayarları (UDP/161 portu)
         config.addSocketTransport(
             snmpEngine,
-            udp.domainName,
-            udp.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
+            ('0.0.0.0', SNMP_AGENT_PORT)
         )
 
         # SNMPv2c community ayarı
