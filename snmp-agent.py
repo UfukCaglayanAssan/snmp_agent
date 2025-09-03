@@ -13,12 +13,6 @@ import struct
 import asyncio
 from collections import defaultdict
 from pysnmp.hlapi.v3arch.asyncio import *
-from pysnmp.entity import config
-from pysnmp.entity.engine import SnmpEngine
-from pysnmp.entity.context import SnmpContext
-from pysnmp.proto.api import v2c
-from pysnmp.smi.rfc1902 import Integer, NoSuchObject
-from pysnmp.proto.rfc1902 import GetRequestPDU
 
 # Global variables
 buffer = bytearray()
@@ -438,7 +432,8 @@ async def get_agent():
         # Transport ayarları (UDP/161 portu)
         config.addSocketTransport(
             snmpEngine,
-            ('0.0.0.0', SNMP_AGENT_PORT)
+            udp.domainName,
+            udp.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
         )
 
         # SNMPv2c community ayarı
