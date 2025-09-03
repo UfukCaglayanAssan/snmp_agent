@@ -11,13 +11,16 @@ import struct
 import asyncio
 from collections import defaultdict
 
-# SNMP için gerekli importlar (pysnmp 7.x sürümüne göre)
-from pysnmp.entity import config
-from pysnmp.entity.engine import SnmpEngine
-from pysnmp.entity.rfc3413.context import SnmpContext
-from pysnmp.proto.api.v2c import GetRequestPDU
+from pysnmp.hlapi.asyncio import *
+from pysnmp.entity import engine, config
 from pysnmp.carrier.asyncio.dgram import udp
+from pysnmp.entity.rfc3413 import cmdrsp
+from pysnmp.proto.rfc1902 import Integer, NoSuchObject
+import asyncio
 
+SNMP_AGENT_PORT = 161
+SNMP_COMMUNITY = 'public'
+SNMP_ENTERPRISE_OID = '1.3.6.1.4.1.99999'
 
 # Global variables
 buffer = bytearray()
@@ -429,13 +432,12 @@ def data_processor():
             continue
 
 async def get_agent():
-    """Yeni pysnmp 7.x sürümü ile SNMP Agent"""
     try:
         # SNMP Engine oluştur
-        snmpEngine = SnmpEngine()
+        snmpEngine = engine.SnmpEngine()
 
         # Transport ayarları (UDP/161 portu)
-        config.addTransport(
+        config.add_transport(
             snmpEngine,
             udp.DOMAIN_NAME,
             udp.UdpTransport().open_server_mode(('0.0.0.0', SNMP_AGENT_PORT))
@@ -444,45 +446,31 @@ async def get_agent():
         # SNMPv2c community ayarı
         config.add_v1_system(snmpEngine, 'my-area', SNMP_COMMUNITY)
 
-        # Context oluştur (addContext artık yok)
-        snmpContext = SnmpContext(snmpEngine)
-
-        # Request Handler
-        def request_handler(snmpEngine, stateReference, contextEngineId, contextName,
-                            varBinds, cbCtx):
-            execContext = snmpEngine.observer.getExecutionContext('rfc3412.receiveMessage:request')
-            pdu = execContext['pdu']
-
-            # GET işlemleri
-            if pdu.tagSet == GetRequestPDU.tagSet:
+        # Command Responder kullanarak GET isteklerini işleme
+        class MyCommandResponder(cmdrsp.GetCommandResponder):
+            async def handleVarBinds(self, snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
                 rspVarBinds = []
                 for oid, val in varBinds:
                     oid_str = '.'.join([str(x) for x in oid])
                     print(f"SNMP GET isteği: OID={oid_str}")
 
-                    # OID'ye göre değer al
                     value = get_snmp_value(oid_str)
-
                     if value is not None:
-                        # Float değeri integer'a çevir (SNMP için)
                         int_value = int(value * 100) if isinstance(value, float) else int(value)
-                        print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
                         rspVarBinds.append((oid, Integer(int_value)))
                     else:
-                        print(f"SNMP değer bulunamadı: OID={oid_str}")
                         rspVarBinds.append((oid, NoSuchObject()))
 
-                snmpEngine.msgAndPduDsp.returnResponsePdu(
-                    snmpEngine, stateReference, contextEngineId, contextName,
-                    rspVarBinds
-                )
+                # Yanıt gönder
+                snmpEngine.observer.getExecutionContext('rfc3412.receiveMessage:request')['pdu'].setComponentByPosition(0, rspVarBinds)
 
-        # Context register
-        snmpContext.registerContext('', request_handler)
+        # CommandResponder başlat
+        MyCommandResponder(snmpEngine)
 
         print(f"SNMP Agent başlatıldı: Port {SNMP_AGENT_PORT}, Community: {SNMP_COMMUNITY}")
         print(f"Enterprise OID: {SNMP_ENTERPRISE_OID}")
 
+        # Dispatcher başlat
         await snmpEngine.transportDispatcher.jobStarted(1)
         snmpEngine.transportDispatcher.runDispatcher()
 
