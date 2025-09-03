@@ -10,12 +10,9 @@ import json
 import os
 import socket
 import struct
+import asyncio
 from collections import defaultdict
-from pysnmp.entity import engine, config
-from pysnmp.entity.rfc3413 import cmdrsp, context
-from pysnmp.carrier.udp import udp
-from pysnmp.smi import builder, view, rfc1902
-from pysnmp.proto import rfc1902 as snmp
+from pysnmp.hlapi.v3arch.asyncio import *
 
 # Global variables
 buffer = bytearray()
@@ -426,72 +423,75 @@ def data_processor():
             print(f"\ndata_processor'da beklenmeyen hata: {e}")
             continue
 
-def snmp_get_handler(snmpEngine, stateReference, contextName, varBinds, cbCtx):
-    """SNMP GET isteklerini işle"""
-    try:
-        for oid, val in varBinds:
-            oid_str = '.'.join([str(x) for x in oid])
-            print(f"SNMP GET isteği: OID={oid_str}")
-            
-            # OID'ye göre değer al
-            value = get_snmp_value(oid_str)
-            
-            if value is not None:
-                # Float değeri integer'a çevir (SNMP için)
-                int_value = int(value * 100) if isinstance(value, float) else int(value)
-                print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
-                
-                # SNMP response hazırla
-                varBinds = [(oid, rfc1902.Integer(int_value))]
-                snmpEngine.msgAndPduDsp.returnResponsePdu(
-                    snmpEngine, stateReference, 0, 0, varBinds
-                )
-            else:
-                print(f"SNMP değer bulunamadı: OID={oid_str}")
-                # NoSuchInstance hatası döndür
-                snmpEngine.msgAndPduDsp.returnResponsePdu(
-                    snmpEngine, stateReference, 0, 2, varBinds
-                )
-                
-    except Exception as e:
-        print(f"SNMP GET handler hatası: {e}")
-
-def start_snmp_agent():
-    """SNMP Agent'ı başlat"""
+async def get_agent():
+    """Yeni pysnmp sürümü ile SNMP Agent"""
     try:
         # SNMP Engine oluştur
-        snmpEngine = engine.SnmpEngine()
-        
-        # Transport layer (UDP)
-        config.addTransport(
+        snmpEngine = SnmpEngine()
+
+        # Transport ayarları (UDP/161 portu)
+        config.addSocketTransport(
             snmpEngine,
             udp.domainName,
             udp.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
         )
-        
-        # Community string ayarla
+
+        # SNMPv2c community ayarı
         config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
-        
-        # SNMP GET handler'ı ekle
-        snmpEngine.registerContextName(vacm.V2cContextName(), '')
-        
-        # Command responder ekle
-        cmdrsp.GetCommandResponder(snmpEngine, snmp_get_handler)
-        
+
+        # Context
+        config.addContext(snmpEngine, '')
+
+        # Request Handler
+        def request_handler(snmpEngine, stateReference, contextEngineId, contextName,
+                            varBinds, cbCtx):
+            execContext = snmpEngine.observer.getExecutionContext('rfc3412.receiveMessage:request')
+            pdu = execContext['pdu']
+
+            # GET işlemleri
+            if pdu.tagSet == GetRequestPDU.tagSet:
+                rspVarBinds = []
+                for oid, val in varBinds:
+                    oid_str = '.'.join([str(x) for x in oid])
+                    print(f"SNMP GET isteği: OID={oid_str}")
+                    
+                    # OID'ye göre değer al
+                    value = get_snmp_value(oid_str)
+                    
+                    if value is not None:
+                        # Float değeri integer'a çevir (SNMP için)
+                        int_value = int(value * 100) if isinstance(value, float) else int(value)
+                        print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
+                        rspVarBinds.append((oid, Integer(int_value)))
+                    else:
+                        print(f"SNMP değer bulunamadı: OID={oid_str}")
+                        rspVarBinds.append((oid, NoSuchObject()))
+                        
+                snmpEngine.msgAndPduDsp.returnResponsePdu(
+                    snmpEngine, stateReference, contextEngineId, contextName,
+                    rspVarBinds
+                )
+
+        snmpContext = SnmpContext(snmpEngine)
+        snmpContext.registerContext('', request_handler)
+
         print(f"SNMP Agent başlatıldı: Port {SNMP_AGENT_PORT}, Community: {SNMP_COMMUNITY}")
         print(f"Enterprise OID: {SNMP_ENTERPRISE_OID}")
         
-        # SNMP Agent'ı çalıştır
-        snmpEngine.transportDispatcher.jobStarted(1)
+        await snmpEngine.transportDispatcher.jobStarted(1)
+        snmpEngine.transportDispatcher.runDispatcher()
         
-        try:
-            snmpEngine.transportDispatcher.runDispatcher()
-        except:
-            snmpEngine.transportDispatcher.closeDispatcher()
-            raise
-            
     except Exception as e:
         print(f"SNMP Agent başlatma hatası: {e}")
+
+def start_snmp_agent():
+    """SNMP Agent'ı başlat (thread içinde)"""
+    try:
+        asyncio.run(get_agent())
+    except KeyboardInterrupt:
+        print("SNMP agent kapatıldı.")
+    except Exception as e:
+        print(f"SNMP Agent hatası: {e}")
 
 def main():
     try:
