@@ -13,6 +13,7 @@ import struct
 import asyncio
 from collections import defaultdict
 from pysnmp.hlapi.v3arch.asyncio import *
+from pysnmp.entity import config
 
 # Global variables
 buffer = bytearray()
