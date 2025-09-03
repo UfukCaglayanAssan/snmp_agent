@@ -13,7 +13,7 @@ import struct
 from collections import defaultdict
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp, context
-from pysnmp.carrier.udp.dgram import udp
+from pysnmp.carrier import udp
 from pysnmp.smi import builder, view, rfc1902
 from pysnmp.proto import rfc1902 as snmp
 
