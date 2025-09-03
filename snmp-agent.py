@@ -429,23 +429,23 @@ def data_processor():
             continue
 
 async def get_agent():
-    """Yeni pysnmp sürümü ile SNMP Agent"""
+    """Yeni pysnmp 7.x sürümü ile SNMP Agent"""
     try:
         # SNMP Engine oluştur
         snmpEngine = SnmpEngine()
 
         # Transport ayarları (UDP/161 portu)
-        config.addSocketTransport(
+        config.addTransport(
             snmpEngine,
-            udp.domainName,
-            udp.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
+            udp.DOMAIN_NAME,
+            udp.UdpTransport().open_server_mode(('0.0.0.0', SNMP_AGENT_PORT))
         )
 
         # SNMPv2c community ayarı
-        config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
+        config.add_v1_system(snmpEngine, 'my-area', SNMP_COMMUNITY)
 
-        # Context
-        config.addContext(snmpEngine, '')
+        # Context oluştur (addContext artık yok)
+        snmpContext = SnmpContext(snmpEngine)
 
         # Request Handler
         def request_handler(snmpEngine, stateReference, contextEngineId, contextName,
@@ -459,10 +459,10 @@ async def get_agent():
                 for oid, val in varBinds:
                     oid_str = '.'.join([str(x) for x in oid])
                     print(f"SNMP GET isteği: OID={oid_str}")
-                    
+
                     # OID'ye göre değer al
                     value = get_snmp_value(oid_str)
-                    
+
                     if value is not None:
                         # Float değeri integer'a çevir (SNMP için)
                         int_value = int(value * 100) if isinstance(value, float) else int(value)
@@ -471,23 +471,24 @@ async def get_agent():
                     else:
                         print(f"SNMP değer bulunamadı: OID={oid_str}")
                         rspVarBinds.append((oid, NoSuchObject()))
-                        
+
                 snmpEngine.msgAndPduDsp.returnResponsePdu(
                     snmpEngine, stateReference, contextEngineId, contextName,
                     rspVarBinds
                 )
 
-        snmpContext = SnmpContext(snmpEngine)
+        # Context register
         snmpContext.registerContext('', request_handler)
 
         print(f"SNMP Agent başlatıldı: Port {SNMP_AGENT_PORT}, Community: {SNMP_COMMUNITY}")
         print(f"Enterprise OID: {SNMP_ENTERPRISE_OID}")
-        
+
         await snmpEngine.transportDispatcher.jobStarted(1)
         snmpEngine.transportDispatcher.runDispatcher()
-        
+
     except Exception as e:
         print(f"SNMP Agent başlatma hatası: {e}")
+
 
 def start_snmp_agent():
     """SNMP Agent'ı başlat (thread içinde)"""
