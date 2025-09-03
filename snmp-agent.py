@@ -12,6 +12,7 @@ import asyncio
 from collections import defaultdict
 
 # SNMP için gerekli importlar
+from pysnmp.hlapi.transport import udp
 from pysnmp.hlapi.v3arch.asyncio import *
 from pysnmp.entity import config
 from pysnmp.entity.engine import SnmpEngine
