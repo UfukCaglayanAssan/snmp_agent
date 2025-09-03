@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import time
 import datetime
 import threading
@@ -12,7 +10,13 @@ import socket
 import struct
 import asyncio
 from collections import defaultdict
+
+# SNMP için gerekli importlar
 from pysnmp.hlapi.v3arch.asyncio import *
+from pysnmp.entity import config
+from pysnmp.entity.engine import SnmpEngine
+from pysnmp.entity.rfc3413.context import SnmpContext
+from pysnmp.proto.api.v2c import GetRequestPDU
 
 # Global variables
 buffer = bytearray()
