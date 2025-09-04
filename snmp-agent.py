@@ -7,7 +7,7 @@ import os
 import socket
 import struct
 from pysnmp.hlapi import (
-    SnmpEngine, CommunityData, ContextData, ObjectType, ObjectIdentity,
+    CommunityData, ContextData, ObjectType, ObjectIdentity,
     UdpTransportTarget, NotificationType, sendNotification
 )
 from pysnmp.carrier.asyncore.dgram import udp
