@@ -1,5 +1,11 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+"""
+Battery Management System SNMP Agent
+battery_snmp.py'den uyarlanmış çalışan SNMP agent
+"""
 
+import sys
+import os
 import time
 import datetime
 import threading
@@ -7,11 +13,7 @@ import queue
 import math
 import pigpio
 import json
-import os
-import socket
-import struct
 from collections import defaultdict
-from pysnmp.hlapi.v3arch.asyncio import *
 
 # Global variables
 buffer = bytearray()
@@ -172,54 +174,80 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
             return result
 
 def get_snmp_value(oid):
-    """OID'ye göre SNMP değeri döndür"""
+    """SNMP OID için değer döndür - battery_snmp.py benzeri"""
     try:
-        # OID'yi parse et: 1.3.6.1.4.1.99999.1.3.1.1.0
-        oid_parts = oid.split('.')
+        print(f"DEBUG: get_snmp_value called with OID: {oid}", file=sys.stderr)
         
-        if len(oid_parts) < 10:
-            return None
-            
-        # Enterprise OID kontrolü
-        if '.'.join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
-            return None
-            
-        # OID formatı: 1.3.6.1.4.1.99999.1.ARM.K.DTYPE.0
-        arm_num = int(oid_parts[7])  # Arm numarası
-        k_value = int(oid_parts[8])  # k değeri
-        dtype = int(oid_parts[9])    # dtype
-        
-        print(f"SNMP OID parse edildi: Arm={arm_num}, k={k_value}, dtype={dtype}")
-        
-        # RAM'den veri oku
-        data = get_battery_data_ram(arm_num, k_value, dtype)
-        
-        if data is None:
-            return 0.0
-            
-        return data['value']
-        
-    except Exception as e:
-        print(f"SNMP OID parse hatası: {e}")
-        return None
+        # OID'den .0 son ekini ve başındaki noktayı kaldır
+        oid = oid.rstrip('.0').lstrip('.')
+        print(f"DEBUG: OID after cleaning: {oid}", file=sys.stderr)
 
-def get_all_battery_data(arm_num, k_value):
-    """Belirli bir arm ve k değeri için tüm verileri döndür"""
-    try:
-        arm_data = get_battery_data_ram(arm_num, k_value)
-        
-        if not arm_data:
-            return {}
-            
-        result = {}
-        for dtype, data in arm_data.items():
-            result[dtype] = data['value']
-            
-        return result
-        
+        # Sistem bilgileri
+        if oid == "1.3.6.1.4.1.99999.1.1.1":  # totalBatteryCount
+            print("DEBUG: Matched totalBatteryCount", file=sys.stderr)
+            data = get_battery_data_ram()
+            battery_count = 0
+            for arm in data.keys():
+                for k in data[arm].keys():
+                    if k > 2:  # k>2 olanlar batarya verisi
+                        battery_count += 1
+            result = battery_count if battery_count > 0 else 1
+            print(f"DEBUG: Returning battery count: {result}", file=sys.stderr)
+            return result
+
+        elif oid == "1.3.6.1.4.1.99999.1.1.2":  # totalArmCount
+            print("DEBUG: Matched totalArmCount", file=sys.stderr)
+            data = get_battery_data_ram()
+            result = len(data) if data else 2
+            print(f"DEBUG: Returning arm count: {result}", file=sys.stderr)
+            return result
+
+        elif oid == "1.3.6.1.4.1.99999.1.1.3":  # systemStatus
+            print("DEBUG: Matched systemStatus", file=sys.stderr)
+            result = 1  # Normal
+            print(f"DEBUG: Returning system status: {result}", file=sys.stderr)
+            return result
+
+        elif oid == "1.3.6.1.4.1.99999.1.1.4":  # lastUpdateTime
+            print("DEBUG: Matched lastUpdateTime", file=sys.stderr)
+            result = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"DEBUG: Returning last update time: {result}", file=sys.stderr)
+            return result
+
+        # Veri sayısı
+        elif oid == "1.3.6.1.4.1.99999.2.2":  # dataCount
+            print("DEBUG: Matched dataCount", file=sys.stderr)
+            data = get_battery_data_ram()
+            result = sum(len(data[arm]) for arm in data) if data else 13
+            print(f"DEBUG: Returning data count: {result}", file=sys.stderr)
+            return result
+
+        # Gerçek batarya verileri - OID'den arm, k, dtype çıkar
+        elif oid.startswith("1.3.6.1.4.1.99999.4."):
+            print("DEBUG: Matched real battery data OID", file=sys.stderr)
+            # Format: 1.3.6.1.4.1.99999.4.{arm}.{k}.{dtype}
+            parts = oid.split('.')
+            if len(parts) >= 8:
+                arm = int(parts[6])
+                k = int(parts[7])
+                dtype = int(parts[8]) if len(parts) > 8 else 0
+
+                data = get_battery_data_ram(arm, k, dtype)
+                if data:
+                    result = data['value']
+                    print(f"DEBUG: Returning real battery data value for OID {oid}: {result}", file=sys.stderr)
+                    return result
+                result = 0
+                print(f"DEBUG: Returning 0 for real battery data OID {oid}", file=sys.stderr)
+                return result
+
+        else:
+            print(f"DEBUG: No match for OID: {oid}", file=sys.stderr)
+            return None
+
     except Exception as e:
-        print(f"Tüm batarya verisi alma hatası: {e}")
-        return {}
+        print(f"Error in get_snmp_value: {e}", file=sys.stderr)
+        return None
 
 def read_serial(pi):
     """Bit-banging ile GPIO üzerinden seri veri oku"""
@@ -422,74 +450,8 @@ def data_processor():
             print(f"\ndata_processor'da beklenmeyen hata: {e}")
             continue
 
-def snmp_get_handler(snmpEngine, stateReference, contextName, varBinds, cbCtx):
-    """SNMP GET isteklerini işle"""
-    try:
-        for oid, val in varBinds:
-            oid_str = '.'.join([str(x) for x in oid])
-            print(f"SNMP GET isteği: OID={oid_str}")
-            
-            # OID'ye göre değer al
-            value = get_snmp_value(oid_str)
-            
-            if value is not None:
-                # Float değeri integer'a çevir (SNMP için)
-                int_value = int(value * 100) if isinstance(value, float) else int(value)
-                print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
-                
-                # SNMP response hazırla
-                varBinds = [(oid, rfc1902.Integer(int_value))]
-                snmpEngine.msgAndPduDsp.returnResponsePdu(
-                    snmpEngine, stateReference, 0, 0, varBinds
-                )
-            else:
-                print(f"SNMP değer bulunamadı: OID={oid_str}")
-                # NoSuchInstance hatası döndür
-                snmpEngine.msgAndPduDsp.returnResponsePdu(
-                    snmpEngine, stateReference, 0, 2, varBinds
-                )
-                
-    except Exception as e:
-        print(f"SNMP GET handler hatası: {e}")
-
-def start_snmp_agent():
-    """SNMP Agent'ı başlat"""
-    try:
-        # SNMP Engine oluştur
-        snmpEngine = engine.SnmpEngine()
-        
-        # Transport layer (UDP)
-        config.addTransport(
-            snmpEngine,
-            udp.domainName,
-            udp.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
-        )
-        
-        # Community string ayarla
-        config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
-        
-        # SNMP GET handler'ı ekle
-        snmpEngine.registerContextName(vacm.V2cContextName(), '')
-        
-        # Command responder ekle
-        cmdrsp.GetCommandResponder(snmpEngine, snmp_get_handler)
-        
-        print(f"SNMP Agent başlatıldı: Port {SNMP_AGENT_PORT}, Community: {SNMP_COMMUNITY}")
-        print(f"Enterprise OID: {SNMP_ENTERPRISE_OID}")
-        
-        # SNMP Agent'ı çalıştır
-        snmpEngine.transportDispatcher.jobStarted(1)
-        
-        try:
-            snmpEngine.transportDispatcher.runDispatcher()
-        except:
-            snmpEngine.transportDispatcher.closeDispatcher()
-            raise
-            
-    except Exception as e:
-        print(f"SNMP Agent başlatma hatası: {e}")
-
 def main():
+    """Ana fonksiyon - SNMP pass direktifi için"""
     try:
         # RAM'i temizle
         with data_lock:
@@ -515,11 +477,6 @@ def main():
         data_thread = threading.Thread(target=data_processor, daemon=True)
         data_thread.start()
         print("data_processor thread'i başlatıldı.")
-
-        # SNMP Agent thread'i
-        snmp_thread = threading.Thread(target=start_snmp_agent, daemon=True)
-        snmp_thread.start()
-        print("snmp_agent thread'i başlatıldı.")
 
         print(f"\nSistem başlatıldı.")
         print("Program çalışıyor... (Ctrl+C ile durdurun)")
