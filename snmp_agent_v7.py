@@ -22,9 +22,9 @@ async def start_snmp_agent():
         snmpEngine = engine.SnmpEngine()
         print("✅ SNMP Engine oluşturuldu")
 
-        # Transport setup - UDP over IPv4
+        # Transport setup - UDP over IPv4 (Port 1161 kullan)
         config.add_transport(
-            snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(("127.0.0.1", 161))
+            snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(("127.0.0.1", 1161))
         )
         print("✅ Transport ayarlandı")
 
@@ -78,7 +78,14 @@ async def start_snmp_agent():
         print("Ctrl+C ile durdurun")
 
         # Run I/O dispatcher which would receive queries and send responses
-        snmpEngine.open_dispatcher()
+        try:
+            snmpEngine.open_dispatcher()
+        except KeyboardInterrupt:
+            print("\n🛑 SNMP Agent durduruluyor...")
+            snmpEngine.close_dispatcher()
+        except Exception as e:
+            print(f"❌ Hata: {e}")
+            snmpEngine.close_dispatcher()
         
     except KeyboardInterrupt:
         print("\n🛑 SNMP Agent durduruluyor...")
