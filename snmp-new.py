@@ -23,7 +23,7 @@ async def run_agent():
     )
 
     # Custom MIB scalar için builder
-    mibBuilder = snmpEngine.getMibBuilder()
+    mibBuilder = snmpEngine.get_mib_builder()
     mibViewController = view.MibViewController(mibBuilder)
 
     # OID: 1.3.6.1.4.1.50000.1.0
