@@ -43,7 +43,7 @@ MODBUS_TCP_HOST = '0.0.0.0'
 
 # SNMP Agent ayarları
 SNMP_PORT = 1161
-SNMP_HOST = '127.0.0.1'
+SNMP_HOST = '0.0.0.0'  # Dışarıdan erişim için 0.0.0.0
 
 def Calc_SOC(x):
     if x is None:
