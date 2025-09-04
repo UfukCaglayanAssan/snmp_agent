@@ -80,12 +80,9 @@ async def start_snmp_agent():
         # Run I/O dispatcher which would receive queries and send responses
         try:
             snmpEngine.open_dispatcher()
-        except KeyboardInterrupt:
-            print("\n🛑 SNMP Agent durduruluyor...")
+        except:
             snmpEngine.close_dispatcher()
-        except Exception as e:
-            print(f"❌ Hata: {e}")
-            snmpEngine.close_dispatcher()
+            raise
         
     except KeyboardInterrupt:
         print("\n🛑 SNMP Agent durduruluyor...")
