@@ -39,15 +39,7 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
     else:
         return battery_data_ram.get(arm, {}).get(k, {}).get(dtype, None)
 
-# Test verileri ekle - Agent başlatılmadan önce
-print("📊 Test verileri ekleniyor...")
-update_battery_data_ram(1, 3, 10, 12.5)  # arm=1, k=3, dtype=10, value=12.5
-update_battery_data_ram(1, 3, 11, 2.3)   # arm=1, k=3, dtype=11, value=2.3
-update_battery_data_ram(1, 3, 12, 25.0)  # arm=1, k=3, dtype=12, value=25.0
-update_battery_data_ram(2, 4, 10, 13.2)  # arm=2, k=4, dtype=10, value=13.2
-update_battery_data_ram(2, 4, 11, 1.8)   # arm=2, k=4, dtype=11, value=1.8
-update_battery_data_ram(2, 4, 12, 28.5)  # arm=2, k=4, dtype=12, value=28.5
-print("✅ Test verileri eklendi")
+# Test verileri - Agent başlatıldıktan sonra eklenecek
 
 def start_basic_snmp_agent():
     """Basit SNMP Agent başlat - Sadece okuma"""
@@ -177,6 +169,16 @@ def start_basic_snmp_agent():
         # Register an imaginary never-ending job to keep I/O dispatcher running forever
         snmpEngine.transport_dispatcher.job_started(1)
         print("✅ Job başlatıldı")
+
+        # Test verileri ekle - Agent başlatıldıktan sonra
+        print("📊 Test verileri ekleniyor...")
+        update_battery_data_ram(1, 3, 10, 12.5)  # arm=1, k=3, dtype=10, value=12.5
+        update_battery_data_ram(1, 3, 11, 2.3)   # arm=1, k=3, dtype=11, value=2.3
+        update_battery_data_ram(1, 3, 12, 25.0)  # arm=1, k=3, dtype=12, value=25.0
+        update_battery_data_ram(2, 4, 10, 13.2)  # arm=2, k=4, dtype=10, value=13.2
+        update_battery_data_ram(2, 4, 11, 1.8)   # arm=2, k=4, dtype=11, value=1.8
+        update_battery_data_ram(2, 4, 12, 28.5)  # arm=2, k=4, dtype=12, value=28.5
+        print("✅ Test verileri eklendi")
 
         print("🚀 Basit SNMP Agent başlatılıyor...")
         print("📡 Port 1161'de dinleniyor...")
