@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SNMP Agent - PySNMP v7.1 Dokümantasyonuna Uygun
-Agent-Side MIB Implementations
+Basit SNMP Agent - Veri Yazma/Okuma
+PySNMP v7.1 Dokümantasyonuna Uygun
 """
 
 import sys
@@ -39,10 +39,10 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
     else:
         return battery_data_ram.get(arm, {}).get(k, {}).get(dtype, None)
 
-def start_snmp_agent():
-    """SNMP Agent başlat - PySNMP v7.1 dokümantasyonuna uygun"""
-    print("🚀 SNMP Agent Başlatılıyor...")
-    print("📡 Agent-Side MIB Implementations")
+def start_simple_snmp_agent():
+    """Basit SNMP Agent başlat"""
+    print("🚀 Basit SNMP Agent Başlatılıyor...")
+    print("📊 Veri Yazma/Okuma Desteği")
     print("=" * 50)
     
     try:
@@ -76,8 +76,8 @@ def start_snmp_agent():
         )
         print("✅ MIB Builder oluşturuldu")
 
-        class BatteryMibScalarInstance(MibScalarInstance):
-            """Batarya verileri için MIB Instance"""
+        class SimpleMibScalarInstance(MibScalarInstance):
+            """Basit MIB Instance - Yazma/Okuma desteği"""
             def getValue(self, name, **context):
                 oid = '.'.join([str(x) for x in name])
                 print(f"🔍 MIB OID sorgusu: {oid}")
@@ -140,40 +140,28 @@ def start_snmp_agent():
                 
                 return False
 
-        # MIB Objects oluştur
+        # MIB Objects oluştur - Sadece temel sistem bilgileri
         mibBuilder.export_symbols(
-            "__BATTERY_MIB",
+            "__SIMPLE_MIB",
             # Sistem bilgileri (sadece okunabilir)
             MibScalar((1, 3, 6, 5, 1), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 1), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 1), (0,), v2c.OctetString()),
             
             MibScalar((1, 3, 6, 5, 2), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 2), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 2), (0,), v2c.OctetString()),
             
             MibScalar((1, 3, 6, 5, 3), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 3), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 3), (0,), v2c.OctetString()),
             
             MibScalar((1, 3, 6, 5, 4), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 4), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 4), (0,), v2c.OctetString()),
             
             MibScalar((1, 3, 6, 5, 5), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 5), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 5), (0,), v2c.OctetString()),
             
             MibScalar((1, 3, 6, 5, 6), v2c.OctetString()),
-            BatteryMibScalarInstance((1, 3, 6, 5, 6), (0,), v2c.OctetString()),
+            SimpleMibScalarInstance((1, 3, 6, 5, 6), (0,), v2c.OctetString()),
         )
-        
-        # Batarya verileri için yazılabilir MIB Objects
-        # Bu objects'ları dinamik olarak oluştur
-        for arm in range(1, 4):  # 1, 2, 3
-            for k in range(3, 6):  # 3, 4, 5
-                for dtype in range(10, 13):  # 10, 11, 12
-                    oid = (1, 3, 6, 5, 10, arm, k, dtype)
-                    mibBuilder.export_symbols(
-                        f"__BATTERY_MIB_{arm}_{k}_{dtype}",
-                        MibScalar(oid, v2c.OctetString()),
-                        BatteryMibScalarInstance(oid, (0,), v2c.OctetString()),
-                    )
         print("✅ MIB Objects oluşturuldu")
 
         # --- end of Managed Object Instance initialization ----
@@ -193,10 +181,9 @@ def start_snmp_agent():
         update_battery_data_ram(1, 3, 10, 12.5)
         update_battery_data_ram(2, 4, 11, 85.0)
         update_battery_data_ram(3, 3, 12, 25.0)
-        update_battery_data_ram(3, 3, 126, 75.5)
         print("✅ Test verileri eklendi")
 
-        print("🚀 SNMP Agent başlatılıyor...")
+        print("🚀 Basit SNMP Agent başlatılıyor...")
         print("📡 Port 1161'de dinleniyor...")
         print("Ctrl+C ile durdurun")
         print("=" * 50)
@@ -227,7 +214,7 @@ def start_snmp_agent():
             raise
         
     except KeyboardInterrupt:
-        print("\n🛑 SNMP Agent durduruluyor...")
+        print("\n🛑 Basit SNMP Agent durduruluyor...")
         snmpEngine.close_dispatcher()
     except Exception as e:
         print(f"❌ Hata: {e}")
@@ -235,4 +222,4 @@ def start_snmp_agent():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    start_snmp_agent()
+    start_simple_snmp_agent()
