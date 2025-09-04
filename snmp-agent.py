@@ -8,8 +8,8 @@ from collections import defaultdict
 
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp
-from pysnmp.smi import rfc1902, instrum
-from pysnmp.carrier.asyncio.dgram import udp
+from pysnmp.smi import rfc1902
+from pysnmp.carrier.asynsock.dgram import udp  # Blocking transport
 
 # ---------------------- Ayarlar ----------------------
 SNMP_AGENT_PORT = 161
@@ -171,7 +171,6 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
             result = battery_data_ram.get(arm, {}).get(k, {}).get(dtype, None)
             print(f"RAM'den okundu: Arm={arm}, k={k}, dtype={dtype}, value={result}")
             return result
-
 def get_snmp_value(oid_str):
     try:
         oid_parts = oid_str.split(".")
@@ -434,7 +433,7 @@ def snmp_get_handler(snmpEngine, stateReference, contextName, varBinds, cbCtx):
                     int_value = int(value)
                 else:
                     int_value = 0
-                    
+
                 print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
                 
                 # SNMP response hazırla
@@ -462,10 +461,11 @@ def request_handler(snmpEngine, stateReference, contextEngineId,
 
 def start_snmp_agent():
     snmpEngine = engine.SnmpEngine()
+    # Blocking UDP transport
     config.addTransport(
-    snmpEngine,
-    udp.domainName,
-    udp.UdpAsyncioTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
+        snmpEngine,
+        udp.domainName,
+        udp.UdpSocketTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
     )
     config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
     cmdrsp.GetCommandResponder(snmpEngine, cbFun=request_handler)
@@ -491,7 +491,7 @@ def main():
             
         pi.write(TX_PIN, 1)
 
-        # Okuma thread'i
+        # Bit-banging UART başlat
         pi.bb_serial_read_open(RX_PIN, BAUD_RATE)
         print(f"GPIO{RX_PIN} bit-banging UART başlatıldı @ {BAUD_RATE} baud.")
 
@@ -510,9 +510,10 @@ def main():
         snmp_thread.start()
         print("snmp_agent thread'i başlatıldı.")
 
-        print(f"\nSistem başlatıldı.")
+        print("\nSistem başlatıldı.")
         print("Program çalışıyor... (Ctrl+C ile durdurun)")
 
+        # Ana döngü
         while True:
             time.sleep(0.1)
 
@@ -520,6 +521,7 @@ def main():
         print("\nProgram sonlandırılıyor...")
 
     finally:
+        # UART ve pigpio temizliği
         if 'pi' in locals():
             try:
                 pi.bb_serial_read_close(RX_PIN)
@@ -527,7 +529,4 @@ def main():
             except pigpio.error:
                 print("Bit-bang UART zaten kapalı.")
             pi.stop()
-
-if __name__ == '__main__':
-    print("SNMP Agent başlatıldı ==>")
-    main()
+            print("pigpio bağlantısı kapatıldı.")
