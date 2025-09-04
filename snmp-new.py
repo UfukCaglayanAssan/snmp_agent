@@ -4,9 +4,8 @@ from pysnmp.hlapi.asyncio import *
 from pysnmp.entity import engine, config
 from pysnmp.carrier.asyncio.dgram import udp
 from pysnmp.entity.rfc3413 import cmdrsp
-from pysnmp.smi import builder, view, rfc1902
 
-# RAM verisi
+# RAM'de tutulan veri
 batarya_sayisi = 5
 
 async def run_agent():
@@ -15,31 +14,30 @@ async def run_agent():
     # SNMP v2c community
     config.add_v1_system(snmpEngine, "my-area", "public")
 
-    # UDP endpoint
+    # UDP endpoint (161 portu root gerektirir, yoksa 1161 gibi başka port kullan)
     config.add_transport(
         snmpEngine,
-        udp.domainName,
-        udp.UdpTransport().openServerMode(('0.0.0.0', 161))
+        udp.DOMAIN_NAME,
+        udp.UdpTransport().open_server_mode(('0.0.0.0', 161))
     )
 
-    # Custom MIB scalar için builder
-    mibBuilder = snmpEngine.get_mib_builder()
-    mibViewController = view.MibViewController(mibBuilder)
+    # CommandResponder kullanarak GET isteklerini yakalayacağız
+    class BatteryResponder(cmdrsp.GetCommandResponder):
+        async def handleVarBinds(self, snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
+            # Gelen varbindleri düzenleyip yanıt veriyoruz
+            responseVarBinds = []
+            for oid, val in varBinds:
+                # OID eşleşirse batarya_sayisi değerini dön
+                if oid == ObjectIdentity('1.3.6.1.4.1.50000.1.0').resolveWithMib(None):
+                    responseVarBinds.append((oid, Integer(batarya_sayisi)))
+                else:
+                    responseVarBinds.append((oid, val))
+            return responseVarBinds
 
-    # OID: 1.3.6.1.4.1.50000.1.0
-    cpu_oid = (1,3,6,1,4,1,50000,1,0)
+    # CmdResponder kayıt et
+    BatteryResponder(snmpEngine, None)
 
-    # GET callback için responder
-    class BatteryScalar(rfc1902.MibScalarInstance):
-        def readGet(self, name, *args):
-            return name, 2, rfc1902.Integer(batarya_sayisi)
-
-    battery_scalar = BatteryScalar(cpu_oid, lambda: batarya_sayisi)
-
-    # Cmd responders
-    cmdrsp.GetCommandResponder(snmpEngine, None)
-    cmdrsp.NextCommandResponder(snmpEngine, None)
-
+    # Başlat
     snmpEngine.transportDispatcher.jobStarted(1)
     try:
         await snmpEngine.transportDispatcher.runDispatcher()
