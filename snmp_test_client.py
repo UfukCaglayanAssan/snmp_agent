@@ -4,7 +4,7 @@ SNMP Test Client - pysnmp ile test
 """
 
 import asyncio
-from pysnmp.hlapi.v3arch import *
+from pysnmp.hlapi.v3arch.asyncio import *
 
 # SNMP ayarları
 community_string = 'public'
