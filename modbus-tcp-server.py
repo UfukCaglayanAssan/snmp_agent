@@ -38,7 +38,7 @@ battery_data_ram = defaultdict(dict)  # {arm: {k: {dtype: value}}}
 data_lock = threading.Lock()  # Thread-safe erişim için
 
 # Modbus TCP server ayarları
-MODBUS_TCP_PORT = 502
+MODBUS_TCP_PORT = 1502  # Port 502 yerine 1502 kullan
 MODBUS_TCP_HOST = '0.0.0.0'
 
 # SNMP Agent ayarları
@@ -928,15 +928,14 @@ def main():
         modbus_thread.start()
         print("modbus_tcp_server thread'i başlatıldı.")
 
-        # SNMP Agent thread'i
-        snmp_thread = threading.Thread(target=start_snmp_agent, daemon=True)
-        snmp_thread.start()
-        print("snmp_agent thread'i başlatıldı.")
+        # SNMP Agent'ı ana thread'de çalıştır (thread içinde asyncio sorunu)
+        print("SNMP Agent başlatılıyor...")
+        start_snmp_agent()
 
         print(f"\nSistem başlatıldı.")
         print("Program çalışıyor... (Ctrl+C ile durdurun)")
         print("=" * 50)
-        print("Modbus TCP Server: Port 502")
+        print("Modbus TCP Server: Port 1502")
         print(f"SNMP Agent: Port {SNMP_PORT}")
         print("=" * 50)
 
