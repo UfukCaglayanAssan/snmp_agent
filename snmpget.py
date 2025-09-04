@@ -1,53 +1,62 @@
 import sys
-from pysnmp.entity import engine, config
-from pysnmp.entity.rfc3413 import cmdrsp, context
-from pysnmp.carrier.asyncio.dgram import udp
-from pysnmp.proto.api import v2c
+import asyncio
+from pysnmp.hlapi.asyncio import (
+    SnmpEngine, CommunityData, ContextData,
+    ObjectType, ObjectIdentity, MibScalar, MibScalarInstance,
+    UdpTransportTarget, NotificationType
+)
+from pysnmp.entity import config
+from pysnmp.entity.rfc3413 import cmdrsp
 
-# 1️⃣ SNMP engine oluştur
-snmpEngine = engine.SnmpEngine()
+# 1️⃣ SNMP Engine oluştur
+snmpEngine = SnmpEngine()
 
-# 2️⃣ UDP transport, root yetkisi olmadan yüksek port kullanıyoruz
-config.add_transport(
+# 2️⃣ UDP transport, root gerekmiyor (yüksek port)
+config.addTransport(
     snmpEngine,
-    udp.DOMAIN_NAME,
-    udp.UdpTransport().open_server_mode(("127.0.0.1", 1161))
+    config.udp.domainName,
+    config.udp.UdpTransport().openServerMode(("127.0.0.1", 1161))
 )
 
-# 3️⃣ SNMPv2c setup
-config.add_v1_system(snmpEngine, "my-area", "public")
-config.add_vacm_user(snmpEngine, 2, "my-area", "noAuthNoPriv", (1, 3, 6, 5))
+# 3️⃣ Community setup
+config.addV1System(snmpEngine, "my-area", "public")
+config.addVacmUser(snmpEngine, 2, "my-area", "noAuthNoPriv", (1,3,6,5))
 
 # 4️⃣ SNMP context oluştur
-snmpContext = context.SnmpContext(snmpEngine)
+from pysnmp.entity.rfc3413 import context as snmp_context
+snmpContext = snmp_context.SnmpContext(snmpEngine)
 
-# 5️⃣ Özel MIB tanımla
-mibBuilder = snmpContext.get_mib_instrum().get_mib_builder()
-MibScalar, MibScalarInstance = mibBuilder.import_symbols(
+# 5️⃣ Özel MIB scalar tanımla
+mibBuilder = snmpContext.getMibInstrum().getMibBuilder()
+MibScalar, MibScalarInstance = mibBuilder.importSymbols(
     "SNMPv2-SMI", "MibScalar", "MibScalarInstance"
 )
 
-class MyStaticMibScalarInstance(MibScalarInstance):
+class PythonInfoInstance(MibScalarInstance):
     def getValue(self, name, **context):
-        return self.getSyntax().clone(
-            f"Python {sys.version} on {sys.platform}"
-        )
+        return self.getSyntax().clone(f"Python {sys.version} on {sys.platform}")
 
-mibBuilder.export_symbols(
+# OID 1.3.6.5.1 olarak tanımladık
+mibBuilder.exportSymbols(
     "__MY_MIB",
-    MibScalar((1, 3, 6, 5, 1), v2c.OctetString()),
-    MyStaticMibScalarInstance((1, 3, 6, 5, 1), (0,), v2c.OctetString()),
+    MibScalar((1,3,6,5,1), 'OctetString'),
+    PythonInfoInstance((1,3,6,5,1), (0,), 'OctetString')
 )
 
-# 6️⃣ SNMP command responder’ları
+# 6️⃣ SNMP command responder
 cmdrsp.GetCommandResponder(snmpEngine, snmpContext)
 cmdrsp.NextCommandResponder(snmpEngine, snmpContext)
 cmdrsp.BulkCommandResponder(snmpEngine, snmpContext)
 
-# 7️⃣ Dispatcher başlat
-snmpEngine.transport_dispatcher.job_started(1)
-try:
-    snmpEngine.transport_dispatcher.runDispatcher()
-except:
-    snmpEngine.transport_dispatcher.closeDispatcher()
-    raise
+# 7️⃣ Dispatcher başlat (asyncio ile modern yöntem)
+async def run_snmp_agent():
+    snmpEngine.transportDispatcher.jobStarted(1)
+    try:
+        await snmpEngine.transportDispatcher.runDispatcher()
+    except Exception:
+        snmpEngine.transportDispatcher.closeDispatcher()
+        raise
+
+# 8️⃣ Asyncio loop ile başlat
+if __name__ == "__main__":
+    asyncio.run(run_snmp_agent())
