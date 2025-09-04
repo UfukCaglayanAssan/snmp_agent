@@ -120,6 +120,25 @@ def start_snmp_agent():
                             return self.getSyntax().clone("0")
                     
                     return self.getSyntax().clone("No Such Object")
+            
+            def setValue(self, name, value, **context):
+                oid = '.'.join([str(x) for x in name])
+                print(f"✏️ MIB OID yazma: {oid} = {value}")
+                
+                # Gerçek batarya verileri yazma
+                if oid.startswith("1.3.6.5.10."):
+                    parts = oid.split('.')
+                    if len(parts) >= 6:
+                        arm = int(parts[4])
+                        k = int(parts[5])
+                        dtype = int(parts[6]) if len(parts) > 6 else 0
+                        
+                        # Veriyi kaydet
+                        update_battery_data_ram(arm, k, dtype, str(value))
+                        print(f"✅ Veri kaydedildi: arm={arm}, k={k}, dtype={dtype}, value={value}")
+                        return True
+                
+                return False
 
         # MIB Objects oluştur
         mibBuilder.export_symbols(
@@ -176,6 +195,16 @@ def start_snmp_agent():
         print("1.3.6.5.4.0  - Sistem durumu")
         print("1.3.6.5.5.0  - Son güncelleme")
         print("1.3.6.5.6.0  - Veri sayısı")
+        print("=" * 50)
+        print("Veri Yazma (SET) Örnekleri:")
+        print("snmpset -v2c -c public localhost:1161 1.3.6.5.10.1.3.10.0 s \"12.5\"")
+        print("snmpset -v2c -c public localhost:1161 1.3.6.5.10.2.4.11.0 s \"85.0\"")
+        print("snmpset -v2c -c public localhost:1161 1.3.6.5.10.3.3.12.0 s \"25.0\"")
+        print("=" * 50)
+        print("Veri Okuma (GET) Örnekleri:")
+        print("snmpget -v2c -c public localhost:1161 1.3.6.5.10.1.3.10.0")
+        print("snmpget -v2c -c public localhost:1161 1.3.6.5.10.2.4.11.0")
+        print("snmpget -v2c -c public localhost:1161 1.3.6.5.10.3.3.12.0")
         print("=" * 50)
 
         # Run I/O dispatcher which would receive queries and send responses
