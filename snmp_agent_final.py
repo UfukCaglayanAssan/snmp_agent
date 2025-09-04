@@ -52,7 +52,7 @@ def start_snmp_agent():
 
         # Transport setup - UDP over IPv4
         config.add_transport(
-            snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(("127.0.0.1", 161))
+            snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(("127.0.0.1", 1161))
         )
         print("✅ Transport ayarlandı")
 
@@ -151,7 +151,8 @@ def start_snmp_agent():
         cmdrsp.GetCommandResponder(snmpEngine, snmpContext)
         cmdrsp.NextCommandResponder(snmpEngine, snmpContext)
         cmdrsp.BulkCommandResponder(snmpEngine, snmpContext)
-        print("✅ Command Responder'lar kaydedildi")
+        cmdrsp.SetCommandResponder(snmpEngine, snmpContext)
+        print("✅ Command Responder'lar kaydedildi (GET/SET/GETNEXT/GETBULK)")
 
         # Register an imaginary never-ending job to keep I/O dispatcher running forever
         snmpEngine.transport_dispatcher.job_started(1)
@@ -165,7 +166,7 @@ def start_snmp_agent():
         print("✅ Test verileri eklendi")
 
         print("🚀 SNMP Agent başlatılıyor...")
-        print("📡 Port 161'de dinleniyor...")
+        print("📡 Port 1161'de dinleniyor...")
         print("Ctrl+C ile durdurun")
         print("=" * 50)
         print("Test OID'leri:")
