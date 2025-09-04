@@ -1,21 +1,23 @@
 import time
-import datetime
 import threading
 import queue
-import math
 import pigpio
 import json
 import os
 import socket
 import struct
-import asyncio
-from collections import defaultdict
-
-from pysnmp.hlapi.asyncio import *
-from pysnmp.entity import engine, config
-from pysnmp.carrier.asyncio.dgram import udp
+from pysnmp.hlapi import (
+    SnmpEngine, CommunityData, ContextData, ObjectType, ObjectIdentity,
+    UdpTransportTarget, NotificationType, sendNotification
+)
+from pysnmp.carrier.asyncore.dgram import udp
+from pysnmp.entity import config
+from pysnmp.entity.engine import SnmpEngine
 from pysnmp.entity.rfc3413 import cmdrsp
-from pysnmp.proto.rfc1902 import Integer, NoSuchObject
+from pysnmp.smi import builder, instrum, view, compiler, rfc1902
+from pysnmp.entity.rfc3413.context import SnmpContext
+from pysnmp.proto.errind import noSuchObject, noSuchInstance, endOfMibView
+
 import asyncio
 
 SNMP_AGENT_PORT = 161
@@ -180,37 +182,44 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
             print(f"RAM'den okundu: Arm={arm}, k={k}, dtype={dtype}, value={result}")
             return result
 
-def get_snmp_value(oid):
+def get_snmp_value(oid_str):
     """OID'ye göre SNMP değeri döndür"""
     try:
-        # OID'yi parse et: 1.3.6.1.4.1.99999.1.3.1.1.0
-        oid_parts = oid.split('.')
-        
+        oid_parts = oid_str.split(".")
+
         if len(oid_parts) < 10:
-            return None
-            
+            return noSuchObject
+
         # Enterprise OID kontrolü
-        if '.'.join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
-            return None
-            
-        # OID formatı: 1.3.6.1.4.1.99999.1.ARM.K.DTYPE.0
-        arm_num = int(oid_parts[7])  # Arm numarası
-        k_value = int(oid_parts[8])  # k değeri
-        dtype = int(oid_parts[9])    # dtype
-        
+        if ".".join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
+            return noSuchObject
+
+        arm_num = int(oid_parts[7])
+        k_value = int(oid_parts[8])
+        dtype   = int(oid_parts[9])
+
         print(f"SNMP OID parse edildi: Arm={arm_num}, k={k_value}, dtype={dtype}")
-        
+
         # RAM'den veri oku
         data = get_battery_data_ram(arm_num, k_value, dtype)
-        
         if data is None:
-            return 0.0
-            
-        return data['value']
-        
+            return noSuchObject
+
+        value = data.get("value", 0)
+
+        # Tip dönüşümü
+        if isinstance(value, int):
+            return Integer(value)
+        elif isinstance(value, float):
+            return Gauge32(int(value * 100))  # float -> scaled int
+        elif isinstance(value, str):
+            return OctetString(value)
+        else:
+            return noSuchObject
+
     except Exception as e:
         print(f"SNMP OID parse hatası: {e}")
-        return None
+        return noSuchObject
 
 def get_all_battery_data(arm_num, k_value):
     """Belirli bir arm ve k değeri için tüm verileri döndür"""
@@ -431,47 +440,35 @@ def data_processor():
             print(f"\ndata_processor'da beklenmeyen hata: {e}")
             continue
 
-async def get_agent():
+def get_agent():
     try:
-        # SNMP Engine oluştur
         snmpEngine = engine.SnmpEngine()
 
-        # Transport ayarları (UDP/161 portu)
         config.add_transport(
             snmpEngine,
             udp.DOMAIN_NAME,
-            udp.UdpTransport().open_server_mode(('0.0.0.0', SNMP_AGENT_PORT))
+            udp.UdpTransport().open_server_mode(("0.0.0.0", SNMP_AGENT_PORT))
         )
 
-        # SNMPv2c community ayarı
-        config.add_v1_system(snmpEngine, 'my-area', SNMP_COMMUNITY)
+        config.add_v1_system(snmpEngine, "my-area", SNMP_COMMUNITY)
 
-        # Command Responder kullanarak GET isteklerini işleme
-        class MyCommandResponder(cmdrsp.GetCommandResponder):
-            async def handleVarBinds(self, snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
-                rspVarBinds = []
-                for oid, val in varBinds:
-                    oid_str = '.'.join([str(x) for x in oid])
-                    print(f"SNMP GET isteği: OID={oid_str}")
+        def request_handler(snmpEngine, stateReference, contextEngineId,
+                            contextName, varBinds, cbCtx):
+            rspVarBinds = []
+            for oid, val in varBinds:
+                oid_str = ".".join(str(x) for x in oid)
+                snmp_val = get_snmp_value(oid_str)
+                rspVarBinds.append((oid, snmp_val))
+            return rspVarBinds
 
-                    value = get_snmp_value(oid_str)
-                    if value is not None:
-                        int_value = int(value * 100) if isinstance(value, float) else int(value)
-                        rspVarBinds.append((oid, Integer(int_value)))
-                    else:
-                        rspVarBinds.append((oid, NoSuchObject()))
-
-                # Yanıt gönder
-                snmpEngine.observer.getExecutionContext('rfc3412.receiveMessage:request')['pdu'].setComponentByPosition(0, rspVarBinds)
-
-        # CommandResponder başlat
-        MyCommandResponder(snmpEngine)
+        cmdrsp.GetCommandResponder(snmpEngine, cbFun=request_handler)
+        cmdrsp.NextCommandResponder(snmpEngine, cbFun=request_handler)
+        cmdrsp.SetCommandResponder(snmpEngine, cbFun=request_handler)
 
         print(f"SNMP Agent başlatıldı: Port {SNMP_AGENT_PORT}, Community: {SNMP_COMMUNITY}")
         print(f"Enterprise OID: {SNMP_ENTERPRISE_OID}")
 
-        # Dispatcher başlat
-        await snmpEngine.transportDispatcher.jobStarted(1)
+        snmpEngine.transportDispatcher.jobStarted(1)
         snmpEngine.transportDispatcher.runDispatcher()
 
     except Exception as e:
@@ -479,9 +476,8 @@ async def get_agent():
 
 
 def start_snmp_agent():
-    """SNMP Agent'ı başlat (thread içinde)"""
     try:
-        asyncio.run(get_agent())
+        get_agent()
     except KeyboardInterrupt:
         print("SNMP agent kapatıldı.")
     except Exception as e:
