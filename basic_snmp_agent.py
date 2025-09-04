@@ -150,13 +150,18 @@ def start_basic_snmp_agent():
             
             MibScalar((1, 3, 6, 5, 6), v2c.OctetString()),
             BasicMibScalarInstance((1, 3, 6, 5, 6), (0,), v2c.OctetString()),
-            
-            MibScalar((1, 3, 6, 5, 7), v2c.OctetString()),
-            BasicMibScalarInstance((1, 3, 6, 5, 7), (0,), v2c.OctetString()),
-            
-            MibScalar((1, 3, 6, 5, 8), v2c.OctetString()),
-            BasicMibScalarInstance((1, 3, 6, 5, 8), (0,), v2c.OctetString()),
         )
+        
+        # Batarya verileri için MIB Objects - Dinamik olarak oluştur
+        for arm in range(1, 4):  # 1, 2, 3
+            for k in range(3, 6):  # 3, 4, 5
+                for dtype in range(10, 13):  # 10, 11, 12
+                    oid = (1, 3, 6, 5, 10, arm, k, dtype)
+                    mibBuilder.export_symbols(
+                        f"__BATTERY_MIB_{arm}_{k}_{dtype}",
+                        MibScalar(oid, v2c.OctetString()),
+                        BasicMibScalarInstance(oid, (0,), v2c.OctetString()),
+                    )
         print("✅ MIB Objects oluşturuldu")
 
         # --- end of Managed Object Instance initialization ----
