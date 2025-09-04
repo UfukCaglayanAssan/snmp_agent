@@ -116,9 +116,13 @@ def start_basic_snmp_agent():
                             k = int(parts[5])
                             dtype = int(parts[6]) if len(parts) > 6 else 0
                             
+                            print(f"🔍 Debug: arm={arm}, k={k}, dtype={dtype}")
                             data = get_battery_data_ram(arm, k, dtype)
+                            print(f"🔍 Debug: data={data}")
                             if data:
+                                print(f"🔍 Debug: value={data['value']}")
                                 return self.getSyntax().clone(str(data['value']))
+                            print(f"🔍 Debug: No data found, returning 0")
                             return self.getSyntax().clone("0")
                     
                     return self.getSyntax().clone("No Such Object")
