@@ -6,11 +6,9 @@ import datetime
 import math
 from collections import defaultdict
 
-from pysnmp.hlapi import *
-from pysnmp.smi import builder, view, compiler, rfc1902, instrum
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp
-from pysnmp.carrier.udp import UdpTransport
+from pysnmp.smi import rfc1902
 
 # ---------------------- Ayarlar ----------------------
 SNMP_AGENT_PORT = 161
@@ -21,13 +19,13 @@ RX_PIN = 16
 TX_PIN = 26
 BAUD_RATE = 9600
 
-# ---------------------- Global Değişkenler ----------------------
-buffer = bytearray()
-data_queue = queue.Queue()
-battery_data_ram = defaultdict(dict)
-data_lock = threading.Lock()
-last_k_value = None
-last_k_value_lock = threading.Lock()
+
+# Periyot sistemi için global değişkenler
+current_period_timestamp = None
+period_active = False
+last_data_received = time.time()
+last_k_value = None  # Son gelen verinin k değerini tutar
+last_k_value_lock = threading.Lock()  # Thread-safe erişim için
 
 # RAM'de veri tutma sistemi
 battery_data_ram = defaultdict(dict)  # {arm: {k: {dtype: value}}}
@@ -172,28 +170,38 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
             result = battery_data_ram.get(arm, {}).get(k, {}).get(dtype, None)
             print(f"RAM'den okundu: Arm={arm}, k={k}, dtype={dtype}, value={result}")
             return result
-def get_snmp_value(oid_str):
+
+def get_snmp_value(oid):
+    """OID'ye göre SNMP değeri döndür"""
     try:
-        oid_parts = oid_str.split(".")
+        # OID'yi parse et: 1.3.6.1.4.1.99999.1.3.1.1.0
+        oid_parts = oid.split('.')
+        
         if len(oid_parts) < 10:
-            return rfc1902.NoSuchObject()
-        if ".".join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
-            return rfc1902.NoSuchObject()
-        arm = int(oid_parts[7])
-        k = int(oid_parts[8])
-        dtype = int(oid_parts[9])
-        data = get_battery_data_ram(arm, k, dtype)
-        if not data:
-            return rfc1902.NoSuchObject()
-        val = data.get("value", 0)
-        if isinstance(val, int):
-            return rfc1902.Integer(val)
-        elif isinstance(val, float):
-            return rfc1902.Gauge32(int(val * 100))
-        else:
-            return rfc1902.OctetString(str(val))
-    except:
-        return rfc1902.NoSuchObject()
+            return None
+            
+        # Enterprise OID kontrolü
+        if '.'.join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
+            return None
+            
+        # OID formatı: 1.3.6.1.4.1.99999.1.ARM.K.DTYPE.0
+        arm_num = int(oid_parts[7])  # Arm numarası
+        k_value = int(oid_parts[8])  # k değeri
+        dtype = int(oid_parts[9])    # dtype
+        
+        print(f"SNMP OID parse edildi: Arm={arm_num}, k={k_value}, dtype={dtype}")
+        
+        # RAM'den veri oku
+        data = get_battery_data_ram(arm_num, k_value, dtype)
+        
+        if data is None:
+            return 0.0
+            
+        return data['value']
+        
+    except Exception as e:
+        print(f"SNMP OID parse hatası: {e}")
+        return None
 
 def get_all_battery_data(arm_num, k_value):
     """Belirli bir arm ve k değeri için tüm verileri döndür"""
@@ -414,51 +422,129 @@ def data_processor():
             print(f"\ndata_processor'da beklenmeyen hata: {e}")
             continue
 
-def data_processor():
-    while True:
-        try:
-            data=data_queue.get(timeout=1)
-            if data is None:
-                continue
-            if len(data)==11:
-                arm=int(data[3],16)
-                dtype=int(data[2],16)
-                k=int(data[1],16)
-                salt=int(data[4],16)*100 + int(data[5],16)*10 + int(data[6],16) + int(data[7],16)*0.1 + int(data[8],16)*0.01 + int(data[9],16)*0.001
-                update_battery_data_ram(arm,k,dtype,round(salt,4))
-            data_queue.task_done()
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f"data_processor hatası: {e}")
-            continue
+import time
+import threading
+import queue
+import pigpio
+import datetime
+import math
+from collections import defaultdict
 
-def request_handler(snmpEngine,stateReference,contextEngineId,contextName,varBinds,cbCtx):
-    rspVarBinds=[]
+from pysnmp.entity import engine, config
+from pysnmp.entity.rfc3413 import cmdrsp
+from pysnmp.smi import rfc1902
+
+# ---------------------- Ayarlar ----------------------
+SNMP_AGENT_PORT = 161
+SNMP_COMMUNITY = 'public'
+SNMP_ENTERPRISE_OID = '1.3.6.1.4.1.99999'
+
+RX_PIN = 16
+TX_PIN = 26
+BAUD_RATE = 9600
+
+# ---------------------- Global Değişkenler ----------------------
+buffer = bytearray()
+data_queue = queue.Queue()
+battery_data_ram = defaultdict(dict)
+data_lock = threading.Lock()
+last_k_value = None
+last_k_value_lock = threading.Lock()
+
+# pigpio başlat
+pi = pigpio.pi()
+pi.set_mode(TX_PIN, pigpio.OUTPUT)
+
+# ---------------------- Yardımcı Fonksiyonlar ----------------------
+def Calc_SOC(x):
+    if x is None:
+        return None
+    a1, a2, a3, a4 = 112.1627, 14.3937, 0, 10.5555
+    b1, b2, b3, b4 = 14.2601, 11.6890, 12.7872, 10.9406
+    c1, c2, c3, c4 = 1.8161, 0.8211, 0.0025, 0.3866
+    try:
+        Soctahmin = (
+            a1 * math.exp(-((x - b1) / c1) ** 2) +
+            a2 * math.exp(-((x - b2) / c2) ** 2) +
+            a3 * math.exp(-((x - b3) / c3) ** 2) +
+            a4 * math.exp(-((x - b4) / c4) ** 2)
+        )
+        Soctahmin = max(0.0, min(100.0, Soctahmin))
+        return round(Soctahmin, 4)
+    except:
+        return None
+
+def Calc_SOH(x):
+    if x is None:
+        return None
+    try:
+        a1, b1, c1 = 85.918, 0.0181, 0.0083
+        a2, b2, c2 = 85.11, 0.0324, 0.0104
+        a3, b3, c3 = 0.3085, 0.0342, 0.0021
+        a4, b4, c4 = 16.521, 0.0382, 0.0013
+        a5, b5, c5 = -13.874, 0.0381, 0.0011
+        a6, b6, c6 = 40.077, 0.0474, 0.0079
+        a7, b7, c7 = 18.207, 0.0556, 0.0048
+
+        SohSonuc = (
+            a1*math.exp(-((x-b1)/c1)**2) + a2*math.exp(-((x-b2)/c2)**2) +
+            a3*math.exp(-((x-b3)/c3)**2) + a4*math.exp(-((x-b4)/c4)**2) +
+            a5*math.exp(-((x-b5)/c5)**2) + a6*math.exp(-((x-b6)/c6)**2) +
+            a7*math.exp(-((x-b7)/c7)**2)
+        )
+        return round(min(SohSonuc,100.0), 4)
+    except:
+        return None
+
+def update_last_k_value(new_value):
+    global last_k_value
+    with last_k_value_lock:
+        last_k_value = new_value
+
+def get_last_k_value():
+    global last_k_value
+    with last_k_value_lock:
+        return last_k_value
+
+def update_battery_data_ram(arm, k, dtype, value):
+    with data_lock:
+        if arm not in battery_data_ram:
+            battery_data_ram[arm] = {}
+        if k not in battery_data_ram[arm]:
+            battery_data_ram[arm][k] = {}
+        battery_data_ram[arm][k][dtype] = {'value': value, 'timestamp': int(time.time()*1000)}
+        print(f"RAM'e kaydedildi: Arm={arm}, k={k}, dtype={dtype}, value={value}")
+
+def get_battery_data_ram(arm=None, k=None, dtype=None):
+    with data_lock:
+        if arm is None:
+            return dict(battery_data_ram)
+        if k is None:
+            return dict(battery_data_ram.get(arm, {}))
+        if dtype is None:
+            return dict(battery_data_ram.get(arm, {}).get(k, {}))
+        return battery_data_ram.get(arm, {}).get(k, {}).get(dtype, None)
+
+def request_handler(snmpEngine, stateReference, contextEngineId,
+                    contextName, varBinds, cbCtx):
+    rspVarBinds = []
     for oid,val in varBinds:
-        oid_str=".".join(str(x) for x in oid)
-        data=get_battery_data_ram(int(oid_str.split(".")[7]),int(oid_str.split(".")[8]),int(oid_str.split(".")[9]))
-        if data:
-            val=data['value']
-            rspVarBinds.append((oid,rfc1902.Integer(int(val))))
-        else:
-            rspVarBinds.append((oid,rfc1902.NoSuchInstance()))
+        oid_str = ".".join(str(x) for x in oid)
+        rspVarBinds.append((oid,get_snmp_value(oid_str)))
     return rspVarBinds
 
 def start_snmp_agent():
-    snmpEngine=engine.SnmpEngine()
-    # UDP transport
+    snmpEngine = engine.SnmpEngine()
+    # UDP transport ekle
     config.addTransport(
         snmpEngine,
-        UdpTransport().domainName,
-        UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
+        config.snmpUDPDomain,
+        config.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
     )
-    # Community
-    config.addV1System(snmpEngine,'my-area',SNMP_COMMUNITY)
-    # Command responders
-    cmdrsp.GetCommandResponder(snmpEngine,cbFun=request_handler)
-    cmdrsp.NextCommandResponder(snmpEngine,cbFun=request_handler)
-    cmdrsp.SetCommandResponder(snmpEngine,cbFun=request_handler)
+    config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
+    cmdrsp.GetCommandResponder(snmpEngine, cbFun=request_handler)
+    cmdrsp.NextCommandResponder(snmpEngine, cbFun=request_handler)
+    cmdrsp.SetCommandResponder(snmpEngine, cbFun=request_handler)
     snmpEngine.transportDispatcher.jobStarted(1)
     try:
         snmpEngine.transportDispatcher.runDispatcher()
@@ -466,37 +552,57 @@ def start_snmp_agent():
         snmpEngine.transportDispatcher.closeDispatcher()
         print("SNMP agent kapatıldı.")
 
+
 def main():
     try:
-        battery_data_ram.clear()
+        # RAM'i temizle
+        with data_lock:
+            battery_data_ram.clear()
         print("RAM temizlendi.")
+        
         if not pi.connected:
             print("pigpio bağlantısı sağlanamadı!")
             return
-        pi.write(TX_PIN,1)
-        pi.bb_serial_read_open(RX_PIN,BAUD_RATE)
-        print(f"GPIO{RX_PIN} UART başlatıldı @ {BAUD_RATE} baud.")
+            
+        pi.write(TX_PIN, 1)
 
-        read_thread=threading.Thread(target=read_serial,args=(pi,),daemon=True)
+        # Okuma thread'i
+        pi.bb_serial_read_open(RX_PIN, BAUD_RATE)
+        print(f"GPIO{RX_PIN} bit-banging UART başlatıldı @ {BAUD_RATE} baud.")
+
+        # Okuma thread'i
+        read_thread = threading.Thread(target=read_serial, args=(pi,), daemon=True)
         read_thread.start()
-        print("read_serial thread başlatıldı.")
+        print("read_serial thread'i başlatıldı.")
 
-        data_thread=threading.Thread(target=data_processor,daemon=True)
+        # Veri işleme thread'i
+        data_thread = threading.Thread(target=data_processor, daemon=True)
         data_thread.start()
-        print("data_processor thread başlatıldı.")
+        print("data_processor thread'i başlatıldı.")
 
-        start_snmp_agent()  # Ana thread'de çalışacak
+        # SNMP Agent thread'i
+        snmp_thread = threading.Thread(target=start_snmp_agent,daemon=True)
+        snmp_thread.start()
+        print("snmp_agent thread'i başlatıldı.")
+
+        print(f"\nSistem başlatıldı.")
+        print("Program çalışıyor... (Ctrl+C ile durdurun)")
+
+        while True:
+            time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("Program sonlandırılıyor...")
-    finally:
-        try:
-            pi.bb_serial_read_close(RX_PIN)
-            pi.stop()
-            print("GPIO kapatıldı.")
-        except:
-            pass
+        print("\nProgram sonlandırılıyor...")
 
-if __name__=='__main__':
+    finally:
+        if 'pi' in locals():
+            try:
+                pi.bb_serial_read_close(RX_PIN)
+                print("Bit-bang UART kapatıldı.")
+            except pigpio.error:
+                print("Bit-bang UART zaten kapalı.")
+            pi.stop()
+
+if __name__ == '__main__':
     print("SNMP Agent başlatıldı ==>")
     main()
