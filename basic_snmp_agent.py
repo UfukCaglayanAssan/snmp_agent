@@ -111,10 +111,10 @@ def start_basic_snmp_agent():
                     # Gerçek batarya verileri - RAM'den oku
                     if oid.startswith("1.3.6.5.10."):
                         parts = oid.split('.')
-                        if len(parts) >= 6:
-                            arm = int(parts[4])
-                            k = int(parts[5])
-                            dtype = int(parts[6]) if len(parts) > 6 else 0
+                        if len(parts) >= 8:  # 1.3.6.5.10.arm.k.dtype.0
+                            arm = int(parts[5])    # 1.3.6.5.10.{arm}
+                            k = int(parts[6])      # 1.3.6.5.10.arm.{k}
+                            dtype = int(parts[7])  # 1.3.6.5.10.arm.k.{dtype}
                             
                             print(f"🔍 Debug: arm={arm}, k={k}, dtype={dtype}")
                             data = get_battery_data_ram(arm, k, dtype)
