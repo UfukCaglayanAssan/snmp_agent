@@ -9,6 +9,7 @@ from collections import defaultdict
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp
 from pysnmp.smi import rfc1902, instrum
+from pysnmp.carrier.asyncio.dgram import udp
 
 # ---------------------- Ayarlar ----------------------
 SNMP_AGENT_PORT = 161
@@ -425,7 +426,15 @@ def snmp_get_handler(snmpEngine, stateReference, contextName, varBinds, cbCtx):
             
             if value is not None:
                 # Float değeri integer'a çevir (SNMP için)
-                int_value = int(value * 100) if isinstance(value, float) else int(value)
+                if isinstance(value, rfc1902.Integer):
+                    int_value = int(value)
+                elif isinstance(value, rfc1902.Gauge32):
+                    int_value = int(value * 100)
+                elif isinstance(value, rfc1902.OctetString):
+                    int_value = int(value)
+                else:
+                    int_value = 0
+                    
                 print(f"SNMP değer döndürüldü: OID={oid_str}, Value={value} -> {int_value}")
                 
                 # SNMP response hazırla
@@ -453,10 +462,10 @@ def request_handler(snmpEngine, stateReference, contextEngineId,
 
 def start_snmp_agent():
     snmpEngine = engine.SnmpEngine()
-    config.addSocketTransport(
-        snmpEngine,
-        config.SnmpUDPDomain,
-        config.UdpTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
+    config.addTransport(
+    snmpEngine,
+    udp.domainName,
+    udp.UdpAsyncioTransport().openServerMode(('0.0.0.0', SNMP_AGENT_PORT))
     )
     config.addV1System(snmpEngine, 'my-area', SNMP_COMMUNITY)
     cmdrsp.GetCommandResponder(snmpEngine, cbFun=request_handler)
