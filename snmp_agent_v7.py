@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """
-Basit SNMP Server - PySNMP v7.1 ile
+SNMP Agent - PySNMP v7.1 Low-Level v3arch ile
+Agent-Side MIB Implementations
 """
 
+import asyncio
 import sys
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp, context
 from pysnmp.carrier.asyncio.dgram import udp
 from pysnmp.proto.api import v2c
 
-def main():
-    print("🚀 SNMP Server Başlatılıyor...")
+async def start_snmp_agent():
+    """SNMP Agent başlat - Agent-Side MIB Implementations"""
+    print("🚀 SNMP Agent Başlatılıyor...")
+    print("📡 Agent-Side MIB Implementations")
+    print("=" * 50)
     
     try:
         # Create SNMP engine
         snmpEngine = engine.SnmpEngine()
         print("✅ SNMP Engine oluşturuldu")
 
-        # Transport setup
+        # Transport setup - UDP over IPv4
         config.add_transport(
             snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(("127.0.0.1", 161))
         )
@@ -27,7 +32,7 @@ def main():
         config.add_v1_system(snmpEngine, "my-area", "public")
         print("✅ SNMPv2c ayarlandı")
 
-        # Allow read MIB access
+        # Allow read MIB access for this user / securityModels at VACM
         config.add_vacm_user(snmpEngine, 2, "my-area", "noAuthNoPriv", (1, 3, 6, 5))
         print("✅ VACM ayarlandı")
 
@@ -35,7 +40,7 @@ def main():
         snmpContext = context.SnmpContext(snmpEngine)
         print("✅ SNMP Context oluşturuldu")
 
-        # Create custom Managed Object Instance
+        # --- create custom Managed Object Instance ---
         mibBuilder = snmpContext.get_mib_instrum().get_mib_builder()
 
         MibScalar, MibScalarInstance = mibBuilder.import_symbols(
@@ -56,30 +61,36 @@ def main():
         )
         print("✅ MIB Object oluşturuldu")
 
-        # Register SNMP Applications
+        # --- end of Managed Object Instance initialization ----
+
+        # Register SNMP Applications at the SNMP engine for particular SNMP context
         cmdrsp.GetCommandResponder(snmpEngine, snmpContext)
         cmdrsp.NextCommandResponder(snmpEngine, snmpContext)
         cmdrsp.BulkCommandResponder(snmpEngine, snmpContext)
         print("✅ Command Responder'lar kaydedildi")
 
-        # Register job
+        # Register an imaginary never-ending job to keep I/O dispatcher running forever
         snmpEngine.transport_dispatcher.job_started(1)
         print("✅ Job başlatıldı")
 
-        print("🚀 SNMP Server başlatılıyor...")
+        print("🚀 SNMP Agent başlatılıyor...")
         print("📡 Port 161'de dinleniyor...")
         print("Ctrl+C ile durdurun")
 
-        # Run I/O dispatcher
+        # Run I/O dispatcher which would receive queries and send responses
         snmpEngine.open_dispatcher()
         
     except KeyboardInterrupt:
-        print("\n🛑 SNMP Server durduruluyor...")
+        print("\n🛑 SNMP Agent durduruluyor...")
         snmpEngine.close_dispatcher()
     except Exception as e:
         print(f"❌ Hata: {e}")
         import traceback
         traceback.print_exc()
+
+def main():
+    """Ana fonksiyon"""
+    asyncio.run(start_snmp_agent())
 
 if __name__ == "__main__":
     main()

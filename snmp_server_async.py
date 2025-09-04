@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Basit SNMP Server - PySNMP v7.1 ile
+Asenkron SNMP Server - PySNMP v7.1 ile
 """
 
+import asyncio
 import sys
 from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import cmdrsp, context
 from pysnmp.carrier.asyncio.dgram import udp
 from pysnmp.proto.api import v2c
 
-def main():
-    print("🚀 SNMP Server Başlatılıyor...")
+async def start_snmp_server():
+    """Asenkron SNMP Server başlat"""
+    print("🚀 Asenkron SNMP Server Başlatılıyor...")
     
     try:
         # Create SNMP engine
@@ -80,6 +82,10 @@ def main():
         print(f"❌ Hata: {e}")
         import traceback
         traceback.print_exc()
+
+def main():
+    """Ana fonksiyon"""
+    asyncio.run(start_snmp_server())
 
 if __name__ == "__main__":
     main()
