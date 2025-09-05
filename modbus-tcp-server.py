@@ -1023,31 +1023,16 @@ def start_snmp_agent():
         import traceback
         traceback.print_exc()
 
-def add_test_data():
-    """Test verisi ekle"""
+def set_static_arm_counts():
+    """Statik armslavecounts değerlerini ayarla"""
     with data_lock:
-        # Armslavecounts test verisi
-        arm_slave_counts_ram[1] = 2  # Kol 1'de 2 batarya
-        arm_slave_counts_ram[2] = 1  # Kol 2'de 1 batarya
-        arm_slave_counts_ram[3] = 0  # Kol 3'te batarya yok
-        arm_slave_counts_ram[4] = 3  # Kol 4'te 3 batarya
+        # Statik armslavecounts değerleri
+        arm_slave_counts_ram[1] = 0  # Kol 1'de batarya yok
+        arm_slave_counts_ram[2] = 0  # Kol 2'de batarya yok
+        arm_slave_counts_ram[3] = 7  # Kol 3'te 7 batarya
+        arm_slave_counts_ram[4] = 0  # Kol 4'te batarya yok
         
-        # Kol 1 verileri
-        battery_data_ram[1][2] = {10: 1.5, 11: 45.2, 12: 25.3, 13: 26.1}  # k=2 (kol verisi)
-        battery_data_ram[1][3] = {10: 12.5, 126: 85.2, 12: 0.15, 11: 92.1, 13: 24.5, 14: 25.1, 15: 25.8}  # k=3 (batarya 1)
-        battery_data_ram[1][4] = {10: 12.3, 126: 78.9, 12: 0.18, 11: 88.5, 13: 23.8, 14: 24.2, 15: 24.9}  # k=4 (batarya 2)
-        
-        # Kol 2 verileri
-        battery_data_ram[2][2] = {10: 2.1, 11: 38.7, 12: 27.2, 13: 28.0}  # k=2 (kol verisi)
-        battery_data_ram[2][3] = {10: 11.8, 126: 72.3, 12: 0.22, 11: 85.7, 13: 26.1, 14: 26.8, 15: 27.3}  # k=3 (batarya 1)
-        
-        # Kol 4 verileri
-        battery_data_ram[4][2] = {10: 0.8, 11: 52.1, 12: 23.5, 13: 24.2}  # k=2 (kol verisi)
-        battery_data_ram[4][3] = {10: 12.7, 126: 91.5, 12: 0.12, 11: 95.2, 13: 22.8, 14: 23.1, 15: 23.7}  # k=3 (batarya 1)
-        battery_data_ram[4][4] = {10: 12.4, 126: 89.1, 12: 0.14, 11: 93.8, 13: 23.2, 14: 23.6, 15: 24.0}  # k=4 (batarya 2)
-        battery_data_ram[4][5] = {10: 12.1, 126: 86.7, 12: 0.16, 11: 91.4, 13: 23.5, 14: 23.9, 15: 24.3}  # k=5 (batarya 3)
-        
-        print("✓ Test verisi eklendi")
+        print("✓ Statik armslavecounts ayarlandı")
         print(f"  Kol 1: {arm_slave_counts_ram[1]} batarya")
         print(f"  Kol 2: {arm_slave_counts_ram[2]} batarya")
         print(f"  Kol 3: {arm_slave_counts_ram[3]} batarya")
@@ -1060,8 +1045,8 @@ def main():
             battery_data_ram.clear()
         print("RAM temizlendi.")
         
-        # Test verisi ekle
-        add_test_data()
+        # Statik armslavecounts ayarla
+        set_static_arm_counts()
         
         if not pi.connected:
             print("pigpio bağlantısı sağlanamadı!")
@@ -1094,9 +1079,12 @@ def main():
         print("Modbus TCP Server: Port 1502")
         print(f"SNMP Agent: Port {SNMP_PORT}")
         print("=" * 50)
-        print("Dinamik Modbus Test:")
-        print("  Start=1, Quantity=10: Kol1_Akım, Kol1_Nem, Kol1_Sıcaklık, Kol1_Sıcaklık2, Kol1_Bat1_Gerilim, Kol1_Bat1_SOC, Kol1_Bat1_Rint, Kol1_Bat1_SOH, Kol1_Bat1_NTC1, Kol1_Bat1_NTC2")
-        print("  Start=9, Quantity=7: Kol1_Bat1_NTC3, Kol1_Bat2_Gerilim, Kol1_Bat2_SOC, Kol1_Bat2_Rint, Kol1_Bat2_SOH, Kol1_Bat2_NTC1, Kol1_Bat2_NTC2")
+        print("Dinamik Modbus Test (Sadece Kol 3'te 7 batarya):")
+        print("  Start=1, Quantity=4: Kol3_Akım, Kol3_Nem, Kol3_Sıcaklık, Kol3_Sıcaklık2")
+        print("  Start=5, Quantity=7: Kol3_Bat1_Gerilim, Kol3_Bat1_SOC, Kol3_Bat1_Rint, Kol3_Bat1_SOH, Kol3_Bat1_NTC1, Kol3_Bat1_NTC2, Kol3_Bat1_NTC3")
+        print("  Start=12, Quantity=7: Kol3_Bat2_Gerilim, Kol3_Bat2_SOC, Kol3_Bat2_Rint, Kol3_Bat2_SOH, Kol3_Bat2_NTC1, Kol3_Bat2_NTC2, Kol3_Bat2_NTC3")
+        print("  Start=19, Quantity=7: Kol3_Bat3_Gerilim, Kol3_Bat3_SOC, Kol3_Bat3_Rint, Kol3_Bat3_SOH, Kol3_Bat3_NTC1, Kol3_Bat3_NTC2, Kol3_Bat3_NTC3")
+        print("  ... (Kol3_Bat4, Kol3_Bat5, Kol3_Bat6, Kol3_Bat7)")
         print("=" * 50)
 
         # SNMP Agent thread'i
