@@ -94,13 +94,13 @@ def get_dynamic_data_by_index(start_index, quantity):
                     arm_data = get_battery_data_ram(arm)
                     if arm_data and 2 in arm_data:  # k=2 (kol verisi)
                         if data_type == 1:  # Akım
-                            value = arm_data[2].get(10, 0)  # dtype=10
+                            value = arm_data[2].get(10, {}).get('value', 0)  # dtype=10
                         elif data_type == 2:  # Nem
-                            value = arm_data[2].get(11, 0)  # dtype=11
+                            value = arm_data[2].get(11, {}).get('value', 0)  # dtype=11
                         elif data_type == 3:  # Sıcaklık
-                            value = arm_data[2].get(12, 0)  # dtype=12
+                            value = arm_data[2].get(12, {}).get('value', 0)  # dtype=12
                         elif data_type == 4:  # Sıcaklık2
-                            value = arm_data[2].get(13, 0)  # dtype=13
+                            value = arm_data[2].get(13, {}).get('value', 0)  # dtype=13
                         else:
                             value = 0
                         result.append(float(value) if value else 0.0)
@@ -127,19 +127,19 @@ def get_dynamic_data_by_index(start_index, quantity):
                     for data_type in range(5, 12):  # 5-11 (gerilim, soc, rint, soh, ntc1, ntc2, ntc3)
                         if current_index >= start_index and len(result) < quantity:
                             if data_type == 5:  # Gerilim
-                                value = arm_data[k_value].get(10, 0)  # dtype=10
+                                value = arm_data[k_value].get(10, {}).get('value', 0)  # dtype=10
                             elif data_type == 6:  # SOC
-                                value = arm_data[k_value].get(126, 0)  # dtype=126 (SOC)
+                                value = arm_data[k_value].get(126, {}).get('value', 0)  # dtype=126 (SOC)
                             elif data_type == 7:  # Rint
-                                value = arm_data[k_value].get(12, 0)  # dtype=12
+                                value = arm_data[k_value].get(12, {}).get('value', 0)  # dtype=12
                             elif data_type == 8:  # SOH
-                                value = arm_data[k_value].get(11, 0)  # dtype=11 (SOH)
+                                value = arm_data[k_value].get(11, {}).get('value', 0)  # dtype=11 (SOH)
                             elif data_type == 9:  # NTC1
-                                value = arm_data[k_value].get(13, 0)  # dtype=13
+                                value = arm_data[k_value].get(13, {}).get('value', 0)  # dtype=13
                             elif data_type == 10:  # NTC2
-                                value = arm_data[k_value].get(14, 0)  # dtype=14
+                                value = arm_data[k_value].get(14, {}).get('value', 0)  # dtype=14
                             elif data_type == 11:  # NTC3
-                                value = arm_data[k_value].get(15, 0)  # dtype=15
+                                value = arm_data[k_value].get(15, {}).get('value', 0)  # dtype=15
                             else:
                                 value = 0
                             result.append(float(value) if value else 0.0)
