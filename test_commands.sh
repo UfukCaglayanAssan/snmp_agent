@@ -52,3 +52,4 @@ snmpget -v2c -c public localhost 1.3.6.1.4.1.99999.4.3.2.12.0
 
 echo ""
 echo "✅ Test tamamlandı!"
+

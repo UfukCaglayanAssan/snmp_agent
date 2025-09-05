@@ -55,3 +55,4 @@ async def test_snmp():
 
 if __name__ == "__main__":
     asyncio.run(test_snmp())
+
