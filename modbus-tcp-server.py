@@ -38,6 +38,176 @@ battery_data_ram = defaultdict(dict)  # {arm: {k: {dtype: value}}}
 arm_slave_counts_ram = {1: 0, 2: 0, 3: 0, 4: 0}  # Her kol için batarya sayısı
 data_lock = threading.Lock()  # Thread-safe erişim için
 
+# Dinamik veri indeksleme sistemi
+def get_dynamic_data_index(arm, battery_num, data_type):
+    """Dinamik veri indeksi hesapla"""
+    # Veri tipleri:
+    # 1: Kol akım, 2: Kol nem, 3: Kol sıcaklık, 4: Kol sıcaklık2
+    # 5: Batarya gerilim, 6: SOC, 7: Rint, 8: SOH, 9: NTC1, 10: NTC2, 11: NTC3
+    
+    if data_type == 1:  # Kol akım
+        return 1
+    elif data_type == 2:  # Kol nem
+        return 2
+    elif data_type == 3:  # Kol sıcaklık
+        return 3
+    elif data_type == 4:  # Kol sıcaklık2
+        return 4
+    elif data_type == 5:  # Batarya gerilim
+        return 5 + (battery_num - 1) * 7  # Her batarya için 7 veri
+    elif data_type == 6:  # SOC
+        return 6 + (battery_num - 1) * 7
+    elif data_type == 7:  # Rint
+        return 7 + (battery_num - 1) * 7
+    elif data_type == 8:  # SOH
+        return 8 + (battery_num - 1) * 7
+    elif data_type == 9:  # NTC1
+        return 9 + (battery_num - 1) * 7
+    elif data_type == 10:  # NTC2
+        return 10 + (battery_num - 1) * 7
+    elif data_type == 11:  # NTC3
+        return 11 + (battery_num - 1) * 7
+    else:
+        return 0
+
+def get_dynamic_data_by_index(start_index, quantity):
+    """Dinamik veri indeksine göre veri döndür"""
+    with data_lock:
+        result = []
+        current_index = start_index
+        
+        # Armslavecounts'a göre sıralı veri oluştur
+        for arm in range(1, 5):  # Kol 1-4
+            if arm_slave_counts_ram.get(arm, 0) == 0:
+                continue  # Bu kolda batarya yok, atla
+                
+            # Kol verileri (akım, nem, sıcaklık, sıcaklık2)
+            for data_type in range(1, 5):
+                if current_index >= start_index and len(result) < quantity:
+                    arm_data = get_battery_data_ram(arm)
+                    if arm_data and 2 in arm_data:  # k=2 (kol verisi)
+                        if data_type == 1:  # Akım
+                            value = arm_data[2].get(10, 0)  # dtype=10
+                        elif data_type == 2:  # Nem
+                            value = arm_data[2].get(11, 0)  # dtype=11
+                        elif data_type == 3:  # Sıcaklık
+                            value = arm_data[2].get(12, 0)  # dtype=12
+                        elif data_type == 4:  # Sıcaklık2
+                            value = arm_data[2].get(13, 0)  # dtype=13
+                        else:
+                            value = 0
+                        result.append(float(value) if value else 0.0)
+                    else:
+                        result.append(0.0)
+                current_index += 1
+                
+                if len(result) >= quantity:
+                    break
+                    
+            if len(result) >= quantity:
+                break
+                
+            # Batarya verileri
+            battery_count = arm_slave_counts_ram.get(arm, 0)
+            for battery_num in range(1, battery_count + 1):
+                k_value = battery_num + 2  # k=3,4,5,6...
+                arm_data = get_battery_data_ram(arm)
+                if arm_data and k_value in arm_data:
+                    # Her batarya için 7 veri tipi
+                    for data_type in range(5, 12):  # 5-11 (gerilim, soc, rint, soh, ntc1, ntc2, ntc3)
+                        if current_index >= start_index and len(result) < quantity:
+                            if data_type == 5:  # Gerilim
+                                value = arm_data[k_value].get(10, 0)  # dtype=10
+                            elif data_type == 6:  # SOC
+                                value = arm_data[k_value].get(126, 0)  # dtype=126 (SOC)
+                            elif data_type == 7:  # Rint
+                                value = arm_data[k_value].get(12, 0)  # dtype=12
+                            elif data_type == 8:  # SOH
+                                value = arm_data[k_value].get(11, 0)  # dtype=11 (SOH)
+                            elif data_type == 9:  # NTC1
+                                value = arm_data[k_value].get(13, 0)  # dtype=13
+                            elif data_type == 10:  # NTC2
+                                value = arm_data[k_value].get(14, 0)  # dtype=14
+                            elif data_type == 11:  # NTC3
+                                value = arm_data[k_value].get(15, 0)  # dtype=15
+                            else:
+                                value = 0
+                            result.append(float(value) if value else 0.0)
+                        current_index += 1
+                        
+                        if len(result) >= quantity:
+                            break
+                            
+                if len(result) >= quantity:
+                    break
+                    
+            if len(result) >= quantity:
+                break
+                
+        return result
+
+def get_dynamic_register_names(start_index, quantity):
+    """Dinamik register isimlerini oluştur"""
+    names = []
+    current_index = start_index
+    
+    # Armslavecounts'a göre sıralı isim oluştur
+    for arm in range(1, 5):  # Kol 1-4
+        if arm_slave_counts_ram.get(arm, 0) == 0:
+            continue  # Bu kolda batarya yok, atla
+            
+        # Kol verileri (akım, nem, sıcaklık, sıcaklık2)
+        for data_type in range(1, 5):
+            if current_index >= start_index and len(names) < quantity:
+                if data_type == 1:  # Akım
+                    names.append(f"Kol{arm}_Akım(A)")
+                elif data_type == 2:  # Nem
+                    names.append(f"Kol{arm}_Nem(%)")
+                elif data_type == 3:  # Sıcaklık
+                    names.append(f"Kol{arm}_Sıcaklık(°C)")
+                elif data_type == 4:  # Sıcaklık2
+                    names.append(f"Kol{arm}_Sıcaklık2(°C)")
+            current_index += 1
+            
+            if len(names) >= quantity:
+                break
+                
+        if len(names) >= quantity:
+            break
+            
+        # Batarya verileri
+        battery_count = arm_slave_counts_ram.get(arm, 0)
+        for battery_num in range(1, battery_count + 1):
+            # Her batarya için 7 veri tipi
+            for data_type in range(5, 12):  # 5-11 (gerilim, soc, rint, soh, ntc1, ntc2, ntc3)
+                if current_index >= start_index and len(names) < quantity:
+                    if data_type == 5:  # Gerilim
+                        names.append(f"Kol{arm}_Bat{battery_num}_Gerilim(V)")
+                    elif data_type == 6:  # SOC
+                        names.append(f"Kol{arm}_Bat{battery_num}_SOC(%)")
+                    elif data_type == 7:  # Rint
+                        names.append(f"Kol{arm}_Bat{battery_num}_Rint(Ω)")
+                    elif data_type == 8:  # SOH
+                        names.append(f"Kol{arm}_Bat{battery_num}_SOH(%)")
+                    elif data_type == 9:  # NTC1
+                        names.append(f"Kol{arm}_Bat{battery_num}_NTC1(°C)")
+                    elif data_type == 10:  # NTC2
+                        names.append(f"Kol{arm}_Bat{battery_num}_NTC2(°C)")
+                    elif data_type == 11:  # NTC3
+                        names.append(f"Kol{arm}_Bat{battery_num}_NTC3(°C)")
+                current_index += 1
+                
+                if len(names) >= quantity:
+                    break
+                    
+            if len(names) >= quantity:
+                break
+                
+        if len(names) >= quantity:
+            break
+            
+    return names
+
 # Modbus TCP server ayarları
 MODBUS_TCP_PORT = 1502  # Port 1502 kullan (SNMP ile uyumlu)
 MODBUS_TCP_HOST = '0.0.0.0'
@@ -516,94 +686,10 @@ def handle_read_holding_registers(transaction_id, unit_id, start_address, quanti
                     else:
                         registers.append(0.0)  # Boş register
             print(f"DEBUG: Armslavecounts verileri: {registers}")
-        elif start_address >= 100 and start_address < 200:  # Arm 1 verileri
-            arm_num = 1
-            if start_address == 100:  # k=2 (arm verileri)
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_arm_data_for_modbus(arm_data, 0, quantity)
-                print(f"DEBUG: Arm {arm_num}, k=2 (arm) verileri: {registers}")
-            else:  # k>2 (batarya verileri)
-                k_value = start_address - 100
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_specific_battery_data(arm_data, k_value, quantity)
-                print(f"DEBUG: Arm {arm_num}, k={k_value} (batarya) verileri: {registers}")
-        elif start_address >= 200 and start_address < 300:  # Arm 2 verileri
-            arm_num = 2
-            if start_address == 200:  # k=2 (arm verileri)
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_arm_data_for_modbus(arm_data, 0, quantity)
-                print(f"DEBUG: Arm {arm_num}, k=2 (arm) verileri: {registers}")
-            else:  # k>2 (batarya verileri)
-                k_value = start_address - 200
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_specific_battery_data(arm_data, k_value, quantity)
-                print(f"DEBUG: Arm {arm_num}, k={k_value} (batarya) verileri: {registers}")
-        elif start_address >= 300 and start_address < 400:  # Arm 3 verileri
-            arm_num = 3
-            if start_address == 300:  # k=2 (arm verileri)
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_arm_data_for_modbus(arm_data, 0, quantity)
-                print(f"DEBUG: Arm {arm_num}, k=2 (arm) verileri: {registers}")
-            else:  # k>2 (batarya verileri)
-                k_value = start_address - 300
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_specific_battery_data(arm_data, k_value, quantity)
-                print(f"DEBUG: Arm {arm_num}, k={k_value} (batarya) verileri: {registers}")
-        elif start_address >= 0x1000 and start_address <= 0x4FFF:  # Hex adresler (1000-4FFF)
-            # Hex adresini parse et: 303A -> Arm=3, Battery=3, Dtype=A
-            hex_str = hex(start_address)[2:].upper()  # '303A'
-            
-            if len(hex_str) >= 4:
-                # Hex adresini parse et: 3000, 3001, 3004, 303A, 303B, vs.
-                arm_num = int(hex_str[0], 16)  # İlk hane: Arm numarası
-                
-                # Hex dtype'ı sayıya çevir
-                hex_to_dtype = {
-                    'A': 10,   # Gerilim
-                    'B': 11,   # SOH
-                    'C': 12,   # NTC1
-                    'D': 13,   # NTC2
-                    'E': 14,   # NTC3
-                    'F': 126   # SOC
-                }
-                
-                # 3000 formatı (tüm veriler) vs 303A formatı (tekil veri) kontrolü
-                if len(hex_str) >= 4 and hex_str[3] in ['A', 'B', 'C', 'D', 'E', 'F']:
-                    # 303A formatı: Tekil veri
-                    battery_num = int(hex_str[2], 16)  # Üçüncü hane: Battery numarası (301A -> 1)
-                    k_value = battery_num + 2  # Battery numarası + 2 = k değeri (301A -> k=3)
-                    dtype_hex = hex_str[3]  # Dördüncü hane: Dtype (301A -> A)
-                    dtype = hex_to_dtype.get(dtype_hex, 10)
-                    arm_data = get_battery_data_ram(arm_num)
-                    registers = format_specific_dtype_data(arm_data, k_value, dtype, quantity)
-                    print(f"DEBUG: Arm {arm_num}, k={k_value}, dtype={dtype} (hex adres {hex(start_address)}) verileri: {registers}")
-                else:
-                    # 3000, 3001, 3004 formatı: Tüm veriler
-                    battery_num = int(hex_str[3], 16)  # Dördüncü hane: Battery numarası (3004 -> 4)
-                    if battery_num == 0:  # 3000 -> Arm 3, k=2 (arm verileri)
-                        k_value = 2
-                        arm_data = get_battery_data_ram(arm_num)
-                        registers = format_arm_data_for_modbus(arm_data, k_value, quantity)
-                        print(f"DEBUG: Arm {arm_num}, k={k_value} (arm verileri) verileri: {registers}")
-                    else:  # 3001, 3004, vs. -> Arm 3, k=3,4,5 (batarya verileri)
-                        k_value = battery_num  # 3001 -> k=1, 3004 -> k=4
-                        arm_data = get_battery_data_ram(arm_num)
-                        registers = format_specific_battery_data(arm_data, k_value, quantity)
-                        print(f"DEBUG: Arm {arm_num}, k={k_value} (batarya verileri) verileri: {registers}")
-            else:
-                registers = [0.0] * quantity
-                print(f"DEBUG: Geçersiz hex adres {hex(start_address)}, boş veri: {registers}")
-        elif start_address >= 400 and start_address < 500:  # Arm 4 verileri
-            arm_num = 4
-            if start_address == 400:  # k=2 (arm verileri)
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_arm_data_for_modbus(arm_data, 0, quantity)
-                print(f"DEBUG: Arm {arm_num}, k=2 (arm) verileri: {registers}")
-            else:  # k>2 (batarya verileri)
-                k_value = start_address - 400
-                arm_data = get_battery_data_ram(arm_num)
-                registers = format_specific_battery_data(arm_data, k_value, quantity)
-                print(f"DEBUG: Arm {arm_num}, k={k_value} (batarya) verileri: {registers}")
+        elif start_address >= 1:  # Dinamik veri okuma
+            # Dinamik veri sistemi kullan
+            registers = get_dynamic_data_by_index(start_address, quantity)
+            print(f"DEBUG: Dinamik veri (start={start_address}, qty={quantity}): {registers}")
         else:
             # Bilinmeyen adres için boş veri
             registers = [0.0] * quantity
@@ -632,24 +718,11 @@ def handle_read_holding_registers(transaction_id, unit_id, start_address, quanti
         register_names = []
         if start_address == 0:
             register_names = ["Arm1", "Arm2", "Arm3", "Arm4"]
-        elif start_address >= 0x1000 and start_address <= 0x4FFF:  # Hex adresler
-            hex_str = hex(start_address)[2:].upper()
-            if len(hex_str) >= 4:
-                arm_num = int(hex_str[0], 16)
-                if len(hex_str) >= 4 and hex_str[3] in ['A', 'B', 'C', 'D', 'E', 'F']:
-                    # Tekil veri formatı (301A) - tek değer
-                    register_names = ["Tekil Veri"]
-                else:
-                    # Tüm veriler formatı (3000, 3001, 3004)
-                    battery_num = int(hex_str[3], 16)
-                    if battery_num == 0:  # 3000 -> k=2 (arm verileri)
-                        register_names = ["Akım(A)", "Nem(%)", "NTC1(°C)", "NTC2(°C)"]
-                    else:  # 3001, 3004 -> k>2 (batarya verileri)
-                        register_names = ["Gerilim(V)", "SOH(%)", "NTC1(°C)", "NTC2(°C)", "NTC3(°C)", "SOC(%)"]
-            else:
-                register_names = ["Bilinmeyen"]
+        elif start_address >= 1:
+            # Dinamik veri isimleri
+            register_names = get_dynamic_register_names(start_address, quantity)
         else:
-            register_names = ["Gerilim(V)", "SOH(%)", "NTC1(°C)", "NTC2(°C)", "NTC3(°C)", "SOC(%)"]
+            register_names = ["Bilinmeyen"]
         
         print(f"DEBUG: Response hazırlandı, byte_count={byte_count}")
         print(f"DEBUG: Register Names: {register_names[:len(registers)]}")
@@ -938,12 +1011,45 @@ def start_snmp_agent():
         import traceback
         traceback.print_exc()
 
+def add_test_data():
+    """Test verisi ekle"""
+    with data_lock:
+        # Armslavecounts test verisi
+        arm_slave_counts_ram[1] = 2  # Kol 1'de 2 batarya
+        arm_slave_counts_ram[2] = 1  # Kol 2'de 1 batarya
+        arm_slave_counts_ram[3] = 0  # Kol 3'te batarya yok
+        arm_slave_counts_ram[4] = 3  # Kol 4'te 3 batarya
+        
+        # Kol 1 verileri
+        battery_data_ram[1][2] = {10: 1.5, 11: 45.2, 12: 25.3, 13: 26.1}  # k=2 (kol verisi)
+        battery_data_ram[1][3] = {10: 12.5, 126: 85.2, 12: 0.15, 11: 92.1, 13: 24.5, 14: 25.1, 15: 25.8}  # k=3 (batarya 1)
+        battery_data_ram[1][4] = {10: 12.3, 126: 78.9, 12: 0.18, 11: 88.5, 13: 23.8, 14: 24.2, 15: 24.9}  # k=4 (batarya 2)
+        
+        # Kol 2 verileri
+        battery_data_ram[2][2] = {10: 2.1, 11: 38.7, 12: 27.2, 13: 28.0}  # k=2 (kol verisi)
+        battery_data_ram[2][3] = {10: 11.8, 126: 72.3, 12: 0.22, 11: 85.7, 13: 26.1, 14: 26.8, 15: 27.3}  # k=3 (batarya 1)
+        
+        # Kol 4 verileri
+        battery_data_ram[4][2] = {10: 0.8, 11: 52.1, 12: 23.5, 13: 24.2}  # k=2 (kol verisi)
+        battery_data_ram[4][3] = {10: 12.7, 126: 91.5, 12: 0.12, 11: 95.2, 13: 22.8, 14: 23.1, 15: 23.7}  # k=3 (batarya 1)
+        battery_data_ram[4][4] = {10: 12.4, 126: 89.1, 12: 0.14, 11: 93.8, 13: 23.2, 14: 23.6, 15: 24.0}  # k=4 (batarya 2)
+        battery_data_ram[4][5] = {10: 12.1, 126: 86.7, 12: 0.16, 11: 91.4, 13: 23.5, 14: 23.9, 15: 24.3}  # k=5 (batarya 3)
+        
+        print("✓ Test verisi eklendi")
+        print(f"  Kol 1: {arm_slave_counts_ram[1]} batarya")
+        print(f"  Kol 2: {arm_slave_counts_ram[2]} batarya")
+        print(f"  Kol 3: {arm_slave_counts_ram[3]} batarya")
+        print(f"  Kol 4: {arm_slave_counts_ram[4]} batarya")
+
 def main():
     try:
         # RAM'i temizle
         with data_lock:
             battery_data_ram.clear()
         print("RAM temizlendi.")
+        
+        # Test verisi ekle
+        add_test_data()
         
         if not pi.connected:
             print("pigpio bağlantısı sağlanamadı!")
@@ -975,6 +1081,10 @@ def main():
         print("=" * 50)
         print("Modbus TCP Server: Port 1502")
         print(f"SNMP Agent: Port {SNMP_PORT}")
+        print("=" * 50)
+        print("Dinamik Modbus Test:")
+        print("  Start=1, Quantity=10: Kol1_Akım, Kol1_Nem, Kol1_Sıcaklık, Kol1_Sıcaklık2, Kol1_Bat1_Gerilim, Kol1_Bat1_SOC, Kol1_Bat1_Rint, Kol1_Bat1_SOH, Kol1_Bat1_NTC1, Kol1_Bat1_NTC2")
+        print("  Start=9, Quantity=7: Kol1_Bat1_NTC3, Kol1_Bat2_Gerilim, Kol1_Bat2_SOC, Kol1_Bat2_Rint, Kol1_Bat2_SOH, Kol1_Bat2_NTC1, Kol1_Bat2_NTC2")
         print("=" * 50)
 
         # SNMP Agent thread'i
