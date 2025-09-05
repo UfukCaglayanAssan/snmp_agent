@@ -86,6 +86,7 @@ def get_dynamic_data_by_index(start_index, quantity):
                 continue  # Bu kolda batarya yok, atla
                 
             print(f"DEBUG: Kol {arm} işleniyor...")
+            print(f"DEBUG: battery_data_ram[{arm}] = {battery_data_ram.get(arm, 'YOK')}")
             
             # Kol verileri (akım, nem, sıcaklık, sıcaklık2)
             for data_type in range(1, 5):
