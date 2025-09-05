@@ -35,10 +35,11 @@ last_k_value_lock = threading.Lock()  # Thread-safe erişim için
 
 # RAM'de veri tutma sistemi
 battery_data_ram = defaultdict(dict)  # {arm: {k: {dtype: value}}}
+arm_slave_counts_ram = {1: 0, 2: 0, 3: 0, 4: 0}  # Her kol için batarya sayısı
 data_lock = threading.Lock()  # Thread-safe erişim için
 
 # Modbus TCP server ayarları
-MODBUS_TCP_PORT = 1502  # Port 502 yerine 1502 kullan
+MODBUS_TCP_PORT = 1502  # Port 1502 kullan (SNMP ile uyumlu)
 MODBUS_TCP_HOST = '0.0.0.0'
 
 # SNMP Agent ayarları
@@ -388,6 +389,15 @@ def data_processor():
                 if raw_bytes[1] == 0x7E:
                     arm1, arm2, arm3, arm4 = raw_bytes[2], raw_bytes[3], raw_bytes[4], raw_bytes[5]
                     print(f"armslavecounts verisi tespit edildi: arm1={arm1}, arm2={arm2}, arm3={arm3}, arm4={arm4}")
+                    
+                    # RAM'de armslavecounts güncelle
+                    with data_lock:
+                        arm_slave_counts_ram[1] = arm1
+                        arm_slave_counts_ram[2] = arm2
+                        arm_slave_counts_ram[3] = arm3
+                        arm_slave_counts_ram[4] = arm4
+                    
+                    print(f"✓ Armslavecounts RAM'e kaydedildi: {arm_slave_counts_ram}")
                     continue
                 
                 # Balans verisi: 3. byte (index 2) 0x0F ise
@@ -495,21 +505,17 @@ def handle_read_holding_registers(transaction_id, unit_id, start_address, quanti
         registers = []
         
         # Start address'e göre veri döndür
-        if start_address == 0:  # Genel sistem bilgileri
-            # Register 0'dan başlayarak doldur
+        if start_address == 0:  # Armslavecounts verileri
+            # Register 0'dan başlayarak armslavecounts doldur
             registers = []
-            for i in range(quantity):
-                if i == 0:
-                    registers.append(1.0)  # Arm 1 aktif
-                elif i == 1:
-                    registers.append(2.0)  # Arm 2 aktif
-                elif i == 2:
-                    registers.append(3.0)  # Arm 3 aktif
-                elif i == 3:
-                    registers.append(4.0)  # Arm 4 aktif
-                else:
-                    registers.append(0.0)  # Boş register
-            print(f"DEBUG: Genel sistem bilgileri: {registers}")
+            with data_lock:
+                for i in range(quantity):
+                    if i < 4:  # İlk 4 register armslavecounts
+                        arm_num = i + 1
+                        registers.append(float(arm_slave_counts_ram.get(arm_num, 0)))
+                    else:
+                        registers.append(0.0)  # Boş register
+            print(f"DEBUG: Armslavecounts verileri: {registers}")
         elif start_address >= 100 and start_address < 200:  # Arm 1 verileri
             arm_num = 1
             if start_address == 100:  # k=2 (arm verileri)
@@ -800,6 +806,18 @@ def start_snmp_agent():
                         for k in arm.values():
                             total_data += len(k)
                     return self.getSyntax().clone(str(total_data if total_data > 0 else 0))
+                elif oid == "1.3.6.5.7.0":  # arm1SlaveCount
+                    with data_lock:
+                        return self.getSyntax().clone(str(arm_slave_counts_ram.get(1, 0)))
+                elif oid == "1.3.6.5.8.0":  # arm2SlaveCount
+                    with data_lock:
+                        return self.getSyntax().clone(str(arm_slave_counts_ram.get(2, 0)))
+                elif oid == "1.3.6.5.9.0":  # arm3SlaveCount
+                    with data_lock:
+                        return self.getSyntax().clone(str(arm_slave_counts_ram.get(3, 0)))
+                elif oid == "1.3.6.5.10.0":  # arm4SlaveCount
+                    with data_lock:
+                        return self.getSyntax().clone(str(arm_slave_counts_ram.get(4, 0)))
                 else:
                     # Gerçek batarya verileri - Modbus TCP Server RAM'den oku
                     if oid.startswith("1.3.6.5.10."):
@@ -837,6 +855,19 @@ def start_snmp_agent():
             
             MibScalar((1, 3, 6, 5, 6), v2c.OctetString()),
             ModbusRAMMibScalarInstance((1, 3, 6, 5, 6), (0,), v2c.OctetString()),
+            
+            # Armslavecounts OID'leri
+            MibScalar((1, 3, 6, 5, 7), v2c.OctetString()),
+            ModbusRAMMibScalarInstance((1, 3, 6, 5, 7), (0,), v2c.OctetString()),
+            
+            MibScalar((1, 3, 6, 5, 8), v2c.OctetString()),
+            ModbusRAMMibScalarInstance((1, 3, 6, 5, 8), (0,), v2c.OctetString()),
+            
+            MibScalar((1, 3, 6, 5, 9), v2c.OctetString()),
+            ModbusRAMMibScalarInstance((1, 3, 6, 5, 9), (0,), v2c.OctetString()),
+            
+            MibScalar((1, 3, 6, 5, 10), v2c.OctetString()),
+            ModbusRAMMibScalarInstance((1, 3, 6, 5, 10), (0,), v2c.OctetString()),
         )
         
         # Batarya verileri için MIB Objects - Dinamik olarak oluştur
@@ -879,13 +910,19 @@ def start_snmp_agent():
         print("1.3.6.5.2.0  - Batarya sayısı")
         print("1.3.6.5.3.0  - Kol sayısı")
         print("1.3.6.5.4.0  - Sistem durumu")
-        print("1.3.6.5.5.0  - Son güncelleme")
+        print("1.3.6.5.5.0  - Son güncelleme zamanı")
         print("1.3.6.5.6.0  - Veri sayısı")
+        print("1.3.6.5.7.0  - Kol 1 batarya sayısı")
+        print("1.3.6.5.8.0  - Kol 2 batarya sayısı")
+        print("1.3.6.5.9.0  - Kol 3 batarya sayısı")
+        print("1.3.6.5.10.0 - Kol 4 batarya sayısı")
         print("=" * 50)
         print("SNMP Test komutları:")
         print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.2.0")
-        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.10.1.2.10.0")
-        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.10.1.3.10.0")
+        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.7.0")
+        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.8.0")
+        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.9.0")
+        print(f"snmpget -v2c -c public localhost:{SNMP_PORT} 1.3.6.5.10.0")
         print(f"snmpwalk -v2c -c public localhost:{SNMP_PORT} 1.3.6.5")
         print("=" * 50)
 
