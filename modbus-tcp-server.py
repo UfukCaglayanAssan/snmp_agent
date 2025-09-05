@@ -79,7 +79,7 @@ def get_dynamic_data_by_index(start_index, quantity):
         print(f"DEBUG: get_dynamic_data_by_index start={start_index}, quantity={quantity}")
         print(f"DEBUG: arm_slave_counts_ram = {arm_slave_counts_ram}")
         
-        # Armslavecounts'a göre sıralı veri oluştur
+        # Armslavecounts'a göre sıralı veri oluştur - sadece bataryası olan kolları işle
         for arm in range(1, 5):  # Kol 1-4
             if arm_slave_counts_ram.get(arm, 0) == 0:
                 print(f"DEBUG: Kol {arm} atlandı (batarya yok)")
@@ -93,8 +93,10 @@ def get_dynamic_data_by_index(start_index, quantity):
                 print(f"DEBUG: current_index={current_index}, start_index={start_index}, len(result)={len(result)}, quantity={quantity}")
                 if current_index >= start_index and len(result) < quantity:
                     print(f"DEBUG: IF BLOĞU GİRİLDİ!")
+                    print(f"DEBUG: get_battery_data_ram({arm}) çağrılıyor...")
                     arm_data = get_battery_data_ram(arm)
                     print(f"DEBUG: arm_data = {arm_data}")
+                    print(f"DEBUG: arm_data type = {type(arm_data)}")
                     if arm_data and 2 in arm_data:  # k=2 (kol verisi)
                         print(f"DEBUG: k=2 verisi bulundu!")
                         if data_type == 1:  # Akım
