@@ -95,11 +95,12 @@ def get_dynamic_data_by_index(start_index, quantity):
                     print(f"DEBUG: IF BLOĞU GİRİLDİ!")
                     print(f"DEBUG: get_battery_data_ram({arm}) çağrılıyor...")
                     try:
-                        arm_data = get_battery_data_ram(arm)
+                        # data_lock zaten alınmış, direkt erişim
+                        arm_data = dict(battery_data_ram.get(arm, {}))
                         print(f"DEBUG: arm_data = {arm_data}")
                         print(f"DEBUG: arm_data type = {type(arm_data)}")
                     except Exception as e:
-                        print(f"DEBUG: HATA! get_battery_data_ram({arm}) hatası: {e}")
+                        print(f"DEBUG: HATA! arm_data okuma hatası: {e}")
                         arm_data = None
                     if arm_data and 2 in arm_data:  # k=2 (kol verisi)
                         print(f"DEBUG: k=2 verisi bulundu!")
@@ -136,7 +137,8 @@ def get_dynamic_data_by_index(start_index, quantity):
                 print(f"DEBUG: Batarya {battery_num} işleniyor...")
                 k_value = battery_num + 2  # k=3,4,5,6...
                 print(f"DEBUG: k_value = {k_value}")
-                arm_data = get_battery_data_ram(arm)
+                # data_lock zaten alınmış, direkt erişim
+                arm_data = dict(battery_data_ram.get(arm, {}))
                 print(f"DEBUG: arm_data = {arm_data}")
                 if arm_data and k_value in arm_data:
                     print(f"DEBUG: k={k_value} verisi bulundu!")
