@@ -74,7 +74,7 @@ def get_dynamic_data_by_index(start_index, quantity):
     """Dinamik veri indeksine göre veri döndür"""
     with data_lock:
         result = []
-        current_index = 1  # 1'den başla
+        current_index = 1  # 1'den başla (Modbus 1-based)
         
         print(f"DEBUG: get_dynamic_data_by_index start={start_index}, quantity={quantity}")
         print(f"DEBUG: arm_slave_counts_ram = {arm_slave_counts_ram}")
@@ -90,6 +90,7 @@ def get_dynamic_data_by_index(start_index, quantity):
             
             # Kol verileri (akım, nem, sıcaklık, sıcaklık2)
             for data_type in range(1, 5):
+                print(f"DEBUG: current_index={current_index}, start_index={start_index}, len(result)={len(result)}, quantity={quantity}")
                 if current_index >= start_index and len(result) < quantity:
                     arm_data = get_battery_data_ram(arm)
                     if arm_data and 2 in arm_data:  # k=2 (kol verisi)
