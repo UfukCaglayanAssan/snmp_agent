@@ -732,6 +732,11 @@ def start_snmp_agent():
     print("📊 Modbus TCP Server RAM Sistemi ile Entegre")
     
     try:
+        # Thread için yeni event loop oluştur
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         # Create SNMP engine
         snmpEngine = engine.SnmpEngine()
         print("✅ SNMP Engine oluşturuldu")
@@ -928,17 +933,17 @@ def main():
         modbus_thread.start()
         print("modbus_tcp_server thread'i başlatıldı.")
 
-        # SNMP Agent thread'i
-        snmp_thread = threading.Thread(target=start_snmp_agent, daemon=True)
-        snmp_thread.start()
-        print("snmp_agent thread'i başlatıldı.")
-
         print(f"\nSistem başlatıldı.")
         print("Program çalışıyor... (Ctrl+C ile durdurun)")
         print("=" * 50)
         print("Modbus TCP Server: Port 1502")
         print(f"SNMP Agent: Port {SNMP_PORT}")
         print("=" * 50)
+
+        # SNMP Agent thread'i
+        snmp_thread = threading.Thread(target=start_snmp_agent, daemon=True)
+        snmp_thread.start()
+        print("snmp_agent thread'i başlatıldı.")
 
         while True:
             time.sleep(0.1)
