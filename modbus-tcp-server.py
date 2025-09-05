@@ -94,9 +94,13 @@ def get_dynamic_data_by_index(start_index, quantity):
                 if current_index >= start_index and len(result) < quantity:
                     print(f"DEBUG: IF BLOĞU GİRİLDİ!")
                     print(f"DEBUG: get_battery_data_ram({arm}) çağrılıyor...")
-                    arm_data = get_battery_data_ram(arm)
-                    print(f"DEBUG: arm_data = {arm_data}")
-                    print(f"DEBUG: arm_data type = {type(arm_data)}")
+                    try:
+                        arm_data = get_battery_data_ram(arm)
+                        print(f"DEBUG: arm_data = {arm_data}")
+                        print(f"DEBUG: arm_data type = {type(arm_data)}")
+                    except Exception as e:
+                        print(f"DEBUG: HATA! get_battery_data_ram({arm}) hatası: {e}")
+                        arm_data = None
                     if arm_data and 2 in arm_data:  # k=2 (kol verisi)
                         print(f"DEBUG: k=2 verisi bulundu!")
                         if data_type == 1:  # Akım
