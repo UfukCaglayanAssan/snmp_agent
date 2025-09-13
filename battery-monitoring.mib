@@ -163,10 +163,10 @@ kol1Batarya1Status OBJECT-TYPE
 -- ==============================================
 -- ALARM DATA (Alarm Verileri)
 -- ==============================================
--- Format: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI}
+-- Format: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}
 -- KOL: 1-4 (Arm number)
--- BATARYA: 1-120 (Battery number, limited by armslavecounts)
--- ALARM_TIPI: 1=PozitifKutupBasi, 2=NegatifKutupBasi, 3=DusukGerilimUyari, 4=DusukGerilimAlarm, 5=YuksekGerilimUyari, 6=YuksekGerilimAlarm, 7=ModulSicaklik
+-- BATARYA: 0=Kol alarmi, 1-120=Batarya alarmi (limited by armslavecounts)
+-- Deger: Alarm aciklamasi (string) veya "No Such Object"
 
 -- Kol 1 Alarm (Kolun kendisi)
 kol1Alarm OBJECT-TYPE
@@ -174,16 +174,53 @@ kol1Alarm OBJECT-TYPE
     MAX-ACCESS read-only
     STATUS current
     DESCRIPTION
-        "Kol 1 Alarm aciklamasi"
+        "Kol 1 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
     ::= { batterySystem 1 7 0 }
 
+-- Kol 1 Batarya 1 Alarm
 kol1Batarya1Alarm OBJECT-TYPE
     SYNTAX DisplayString
     MAX-ACCESS read-only
     STATUS current
     DESCRIPTION
-        "Kol 1 Batarya 1 Alarm aciklamasi"
-    ::= { batterySystem 1 7 1 1 0 }
+        "Kol 1 Batarya 1 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
+    ::= { batterySystem 1 7 1 }
+
+-- Kol 1 Batarya 2 Alarm (ornek)
+kol1Batarya2Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 2 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
+    ::= { batterySystem 1 7 2 }
+
+-- Kol 2 Alarm (ornek)
+kol2Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 2 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
+    ::= { batterySystem 2 7 0 }
+
+-- Kol 3 Alarm (ornek)
+kol3Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 3 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
+    ::= { batterySystem 3 7 0 }
+
+-- Kol 3 Batarya 1 Alarm (ornek)
+kol3Batarya1Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 3 Batarya 1 Alarm aciklamasi (alarm varsa aciklama, yoksa 'No Such Object')"
+    ::= { batterySystem 3 7 1 }
 
 -- ==============================================
 -- SYSTEM INFORMATION
@@ -233,10 +270,10 @@ maxBatteriesPerArm OBJECT-TYPE
 --   BATARYA: 1-120 (limited by armslavecounts)
 --   Deger: 0=Veri yok, 1=Veri var
 --
--- ALARM: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI} veya .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI}.0
+-- ALARM: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA} veya .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.0
 --   KOL: 1-4
---   BATARYA: 1-120 (limited by armslavecounts)
---   ALARM_TIPI: 1=PozitifKutupBasi, 2=NegatifKutupBasi, 3=DusukGerilimUyari, 4=DusukGerilimAlarm, 5=YuksekGerilimUyari, 6=YuksekGerilimAlarm, 7=ModulSicaklik
+--   BATARYA: 0=Kol alarmi, 1-120=Batarya alarmi (limited by armslavecounts)
+--   Deger: Alarm aciklamasi (string) veya "No Such Object"
 --
 -- EXAMPLES (Her iki format da desteklenir):
 -- ARM DATA:
@@ -259,8 +296,9 @@ maxBatteriesPerArm OBJECT-TYPE
 --
 -- ALARM DATA:
 --   Kol 1 Alarm: .1.3.6.1.4.1.1001.1.7.0 veya .1.3.6.1.4.1.1001.1.7.0.0
---   Kol 1 Batarya 1 Alarm: .1.3.6.1.4.1.1001.1.7.1.1 veya .1.3.6.1.4.1.1001.1.7.1.1.0
---   Kol 2 Batarya 5 Alarm: .1.3.6.1.4.1.1001.2.7.5.1 veya .1.3.6.1.4.1.1001.2.7.5.1.0
---   Kol 3 Batarya 20 Alarm: .1.3.6.1.4.1.1001.3.7.20.1 veya .1.3.6.1.4.1.1001.3.7.20.1.0
+--   Kol 1 Batarya 1 Alarm: .1.3.6.1.4.1.1001.1.7.1 veya .1.3.6.1.4.1.1001.1.7.1.0
+--   Kol 1 Batarya 2 Alarm: .1.3.6.1.4.1.1001.1.7.2 veya .1.3.6.1.4.1.1001.1.7.2.0
+--   Kol 2 Batarya 5 Alarm: .1.3.6.1.4.1.1001.2.7.5 veya .1.3.6.1.4.1.1001.2.7.5.0
+--   Kol 3 Batarya 20 Alarm: .1.3.6.1.4.1.1001.3.7.20 veya .1.3.6.1.4.1.1001.3.7.20.0
 
 END

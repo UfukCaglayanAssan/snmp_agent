@@ -74,7 +74,7 @@ def get_dynamic_data_by_index(start_index, quantity):
     """Dinamik veri indeksine göre veri döndür"""
     with data_lock:
         result = []
-        current_index = 1  # 1'den başla (Modbus 1-based)
+        current_index = start_index  # start_index'ten başla
         
         print(f"DEBUG: get_dynamic_data_by_index start={start_index}, quantity={quantity}")
         print(f"DEBUG: arm_slave_counts_ram = {arm_slave_counts_ram}")

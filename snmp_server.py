@@ -218,7 +218,7 @@ async def snmp_request_handler(snmpEngine, stateReference, varBinds, cbCtx):
                 value = get_battery_data_ram(arm_num, k_value, data_type)
                 if value is not None:
                     varBind[1] = value['value']
-                else:
+        else:
                     varBind[1] = 0.0
                     
             elif parsed_oid['type'] == 'status':
