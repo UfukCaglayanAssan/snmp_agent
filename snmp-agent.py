@@ -34,7 +34,7 @@ data_lock = threading.Lock()  # Thread-safe erişim için
 # SNMP Agent ayarları
 SNMP_AGENT_PORT = 161
 SNMP_COMMUNITY = 'public'
-SNMP_ENTERPRISE_OID = '1.3.6.1.4.1.99999'  # Özel enterprise OID
+SNMP_ENTERPRISE_OID = '1.3.6.1.4.1.1001'  # MIB dosyasındaki enterprise OID
 
 def Calc_SOC(x):
     if x is None:
@@ -172,31 +172,91 @@ def get_battery_data_ram(arm=None, k=None, dtype=None):
             return result
 
 def get_snmp_value(oid):
-    """OID'ye göre SNMP değeri döndür"""
+    """OID'ye göre SNMP değeri döndür - MIB dosyasındaki OID yapısına uygun"""
     try:
-        # OID'yi parse et: 1.3.6.1.4.1.99999.1.3.1.1.0
-        oid_parts = oid.split('.')
+        # OID'yi temizle - sonundaki .0'ı kaldır
+        oid_clean = oid.rstrip('.0').lstrip('.')
+        oid_parts = oid_clean.split('.')
         
-        if len(oid_parts) < 10:
-            return None
-            
-        # Enterprise OID kontrolü
-        if '.'.join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
-            return None
-            
-        # OID formatı: 1.3.6.1.4.1.99999.1.ARM.K.DTYPE.0
-        arm_num = int(oid_parts[7])  # Arm numarası
-        k_value = int(oid_parts[8])  # k değeri
-        dtype = int(oid_parts[9])    # dtype
+        print(f"SNMP OID parse ediliyor: Orijinal={oid}, Temizlenmiş={oid_clean}")
         
-        print(f"SNMP OID parse edildi: Arm={arm_num}, k={k_value}, dtype={dtype}")
+        # Enterprise OID kontrolü (1.3.6.1.4.1.1001)
+        if len(oid_parts) < 7 or '.'.join(oid_parts[:7]) != SNMP_ENTERPRISE_OID:
+            print(f"Enterprise OID uyumsuzluğu: {oid_parts[:7] if len(oid_parts) >= 7 else 'Yetersiz parça'}")
+            return None
+        
+        # MIB dosyasındaki OID yapısına göre parse et
+        # Format: 1.3.6.1.4.1.1001.{KOL}.{VERI_TIPI} veya 1.3.6.1.4.1.1001.{KOL}.5.{BATARYA}.{VERI_TIPI}
+        
+        if len(oid_parts) == 8:  # Kol verisi: 1.3.6.1.4.1.1001.{KOL}.{VERI_TIPI}
+            arm_num = int(oid_parts[7])  # Kol numarası
+            veri_tipi = int(oid_parts[8])  # Veri tipi (1=Akim, 2=Nem, 3=RIMT, 4=NTC1)
+            k_value = 2  # Kol verisi için k=2
+            dtype = veri_tipi
+            
+            print(f"Kol verisi algılandı: Arm={arm_num}, VeriTipi={veri_tipi}")
+            
+        elif len(oid_parts) == 10:  # Batarya verisi: 1.3.6.1.4.1.1001.{KOL}.5.{BATARYA}.{VERI_TIPI}
+            arm_num = int(oid_parts[7])  # Kol numarası
+            if int(oid_parts[8]) != 5:  # 5 olmalı (batarya verisi)
+                print(f"Geçersiz batarya veri formatı: {oid_parts[8]}")
+                return None
+            k_value = int(oid_parts[9])  # Batarya numarası
+            dtype = int(oid_parts[10])  # Veri tipi (1=Gerilim, 2=SOC, 3=RIMT, 4=NTC1, 5=NTC2, 6=NTC3, 7=SOH)
+            
+            print(f"Batarya verisi algılandı: Arm={arm_num}, Batarya={k_value}, VeriTipi={dtype}")
+            
+        elif len(oid_parts) == 9:  # Status verisi: 1.3.6.1.4.1.1001.{KOL}.6.{BATARYA}
+            arm_num = int(oid_parts[7])  # Kol numarası
+            if int(oid_parts[8]) != 6:  # 6 olmalı (status verisi)
+                print(f"Geçersiz status veri formatı: {oid_parts[8]}")
+                return None
+            k_value = int(oid_parts[9])  # Batarya numarası (0=Kol status, >0=Batarya status)
+            dtype = 6  # Status verisi
+            
+            print(f"Status verisi algılandı: Arm={arm_num}, Batarya={k_value}")
+            
+        elif len(oid_parts) == 11:  # Alarm verisi: 1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI}
+            arm_num = int(oid_parts[7])  # Kol numarası
+            if int(oid_parts[8]) != 7:  # 7 olmalı (alarm verisi)
+                print(f"Geçersiz alarm veri formatı: {oid_parts[8]}")
+                return None
+            k_value = int(oid_parts[9])  # Batarya numarası (0=Kol alarm, >0=Batarya alarm)
+            dtype = int(oid_parts[10])  # Alarm tipi
+            
+            print(f"Alarm verisi algılandı: Arm={arm_num}, Batarya={k_value}, AlarmTipi={dtype}")
+            
+        else:
+            print(f"Desteklenmeyen OID formatı: {oid_clean}")
+            return None
+        
+        # Veri tipi mapping (MIB'deki veri tiplerini internal dtype'lara çevir)
+        dtype_mapping = {
+            1: 10,   # Gerilim -> dtype 10
+            2: 126,  # SOC -> dtype 126 (SOC hesaplanmış değer)
+            3: 12,   # RIMT -> dtype 12 (NTC1 olarak kullan)
+            4: 12,   # NTC1 -> dtype 12
+            5: 13,   # NTC2 -> dtype 13
+            6: 14,   # NTC3 -> dtype 14 (varsayılan)
+            7: 11,   # SOH -> dtype 11
+        }
+        
+        # Veri tipi mapping uygula
+        if dtype in dtype_mapping:
+            internal_dtype = dtype_mapping[dtype]
+        else:
+            internal_dtype = dtype
+        
+        print(f"Internal mapping: dtype={dtype} -> internal_dtype={internal_dtype}")
         
         # RAM'den veri oku
-        data = get_battery_data_ram(arm_num, k_value, dtype)
+        data = get_battery_data_ram(arm_num, k_value, internal_dtype)
         
         if data is None:
+            print(f"Veri bulunamadı: Arm={arm_num}, k={k_value}, dtype={internal_dtype}")
             return 0.0
             
+        print(f"Veri bulundu: {data['value']}")
         return data['value']
         
     except Exception as e:

@@ -1,0 +1,266 @@
+BATTERY-MONITORING-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, Gauge32, INTEGER, DisplayString
+        FROM SNMPv2-SMI
+    TEXTUAL-CONVENTION
+        FROM SNMPv2-TC;
+
+batteryMonitoring MODULE-IDENTITY
+    LAST-UPDATED "202501120000Z"
+    ORGANIZATION "Assan Elektronik"
+    CONTACT-INFO "Assan Elektronik - Battery Monitoring System"
+    DESCRIPTION
+        "MIB for Battery Monitoring System
+         Supports 4 arms with up to 120 batteries each
+         Dynamic addressing based on armslavecounts"
+    REVISION "202501120000Z"
+    DESCRIPTION "Initial version"
+    ::= { 1 3 6 1 4 1 1001 }
+
+-- ==============================================
+-- BATTERY SYSTEM OBJECTS
+-- ==============================================
+
+batterySystem OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS not-accessible
+    STATUS current
+    DESCRIPTION
+        "Battery monitoring system root object"
+    ::= { batteryMonitoring 1 }
+
+-- ==============================================
+-- ARM DATA (Kol Verileri)
+-- ==============================================
+-- Format: .1.3.6.1.4.1.1001.{KOL}.{VERI_TIPI}
+-- KOL: 1-4 (Arm number)
+-- VERI_TIPI: 1=Akim, 2=Nem, 3=RIMT, 4=NTC1
+
+-- Kol 1 verileri (ornek)
+kol1Akim OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Akim degeri (Amper)"
+    ::= { batterySystem 1 1 0 }
+
+kol1Nem OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Nem degeri (%)"
+    ::= { batterySystem 1 2 0 }
+
+kol1RIMT OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 RIMT degeri (C)"
+    ::= { batterySystem 1 3 0 }
+
+kol1NTC1 OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 NTC1 degeri (C)"
+    ::= { batterySystem 1 4 0 }
+
+-- ==============================================
+-- BATTERY DATA (Batarya Verileri)
+-- ==============================================
+-- Format: .1.3.6.1.4.1.1001.{KOL}.5.{BATARYA}.{VERI_TIPI}
+-- KOL: 1-4 (Arm number)
+-- BATARYA: 1-120 (Battery number, limited by armslavecounts)
+-- VERI_TIPI: 1=Gerilim, 2=SOC, 3=RIMT, 4=NTC1, 5=NTC2, 6=NTC3, 7=SOH
+
+-- Kol 1 Batarya 1 verileri (ornek)
+kol1Batarya1Gerilim OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 Gerilim degeri (Volt)"
+    ::= { batterySystem 1 5 1 1 0 }
+
+kol1Batarya1SOC OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 SOC degeri (%)"
+    ::= { batterySystem 1 5 1 2 0 }
+
+kol1Batarya1RIMT OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 RIMT degeri (C)"
+    ::= { batterySystem 1 5 1 3 0 }
+
+kol1Batarya1NTC1 OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 NTC1 degeri (C)"
+    ::= { batterySystem 1 5 1 4 0 }
+
+kol1Batarya1NTC2 OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 NTC2 degeri (C)"
+    ::= { batterySystem 1 5 1 5 0 }
+
+kol1Batarya1NTC3 OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 NTC3 degeri (C)"
+    ::= { batterySystem 1 5 1 6 0 }
+
+kol1Batarya1SOH OBJECT-TYPE
+    SYNTAX Gauge32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 SOH degeri (%)"
+    ::= { batterySystem 1 5 1 7 0 }
+
+-- ==============================================
+-- STATUS DATA (Status Verileri)
+-- ==============================================
+-- Format: .1.3.6.1.4.1.1001.{KOL}.6.{BATARYA}
+-- KOL: 1-4 (Arm number)
+-- BATARYA: 1-120 (Battery number, limited by armslavecounts)
+-- Değer: 0=Veri yok, 1=Veri var
+
+-- Kol 1 Status (Kolun kendisi)
+kol1Status OBJECT-TYPE
+    SYNTAX INTEGER { noData(0), hasData(1) }
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Status degeri (0=Veri yok, 1=Veri var)"
+    ::= { batterySystem 1 6 0 }
+
+kol1Batarya1Status OBJECT-TYPE
+    SYNTAX INTEGER { noData(0), hasData(1) }
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 Status degeri (0=Veri yok, 1=Veri var)"
+    ::= { batterySystem 1 6 1 0 }
+
+-- ==============================================
+-- ALARM DATA (Alarm Verileri)
+-- ==============================================
+-- Format: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI}
+-- KOL: 1-4 (Arm number)
+-- BATARYA: 1-120 (Battery number, limited by armslavecounts)
+-- ALARM_TIPI: 1=PozitifKutupBasi, 2=NegatifKutupBasi, 3=DusukGerilimUyari, 4=DusukGerilimAlarm, 5=YuksekGerilimUyari, 6=YuksekGerilimAlarm, 7=ModulSicaklik
+
+-- Kol 1 Alarm (Kolun kendisi)
+kol1Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Alarm aciklamasi"
+    ::= { batterySystem 1 7 0 }
+
+kol1Batarya1Alarm OBJECT-TYPE
+    SYNTAX DisplayString
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Kol 1 Batarya 1 Alarm aciklamasi"
+    ::= { batterySystem 1 7 1 1 0 }
+
+-- ==============================================
+-- SYSTEM INFORMATION
+-- ==============================================
+
+systemInfo OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS not-accessible
+    STATUS current
+    DESCRIPTION
+        "System information objects"
+    ::= { batteryMonitoring 2 }
+
+totalArms OBJECT-TYPE
+    SYNTAX INTEGER (1..4)
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Total number of arms in the system"
+    ::= { systemInfo 1 }
+
+maxBatteriesPerArm OBJECT-TYPE
+    SYNTAX INTEGER (1..120)
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+        "Maximum number of batteries per arm"
+    ::= { systemInfo 2 }
+
+-- ==============================================
+-- ADDRESSING GUIDE
+-- ==============================================
+-- NOT: SNMP Agent hem .0'lı hem de .0'sız OID'leri destekler
+-- MIB Browser'lar genellikle sonuna .0 ekler, bu normaldir
+--
+-- ARM DATA: .1.3.6.1.4.1.1001.{KOL}.{VERI_TIPI} veya .1.3.6.1.4.1.1001.{KOL}.{VERI_TIPI}.0
+--   KOL: 1-4
+--   VERI_TIPI: 1=Akim, 2=Nem, 3=RIMT, 4=NTC1
+--
+-- BATTERY DATA: .1.3.6.1.4.1.1001.{KOL}.5.{BATARYA}.{VERI_TIPI} veya .1.3.6.1.4.1.1001.{KOL}.5.{BATARYA}.{VERI_TIPI}.0
+--   KOL: 1-4
+--   BATARYA: 1-120 (limited by armslavecounts)
+--   VERI_TIPI: 1=Gerilim, 2=SOC, 3=RIMT, 4=NTC1, 5=NTC2, 6=NTC3, 7=SOH
+--
+-- STATUS: .1.3.6.1.4.1.1001.{KOL}.6.{BATARYA} veya .1.3.6.1.4.1.1001.{KOL}.6.{BATARYA}.0
+--   KOL: 1-4
+--   BATARYA: 1-120 (limited by armslavecounts)
+--   Deger: 0=Veri yok, 1=Veri var
+--
+-- ALARM: .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI} veya .1.3.6.1.4.1.1001.{KOL}.7.{BATARYA}.{ALARM_TIPI}.0
+--   KOL: 1-4
+--   BATARYA: 1-120 (limited by armslavecounts)
+--   ALARM_TIPI: 1=PozitifKutupBasi, 2=NegatifKutupBasi, 3=DusukGerilimUyari, 4=DusukGerilimAlarm, 5=YuksekGerilimUyari, 6=YuksekGerilimAlarm, 7=ModulSicaklik
+--
+-- EXAMPLES (Her iki format da desteklenir):
+-- ARM DATA:
+--   Kol 1 Akim: .1.3.6.1.4.1.1001.1.1 veya .1.3.6.1.4.1.1001.1.1.0
+--   Kol 2 Nem: .1.3.6.1.4.1.1001.2.2 veya .1.3.6.1.4.1.1001.2.2.0
+--   Kol 3 RIMT: .1.3.6.1.4.1.1001.3.3 veya .1.3.6.1.4.1.1001.3.3.0
+--   Kol 4 NTC1: .1.3.6.1.4.1.1001.4.4 veya .1.3.6.1.4.1.1001.4.4.0
+--
+-- BATTERY DATA:
+--   Kol 1 Batarya 1 Gerilim: .1.3.6.1.4.1.1001.1.5.1.1 veya .1.3.6.1.4.1.1001.1.5.1.1.0
+--   Kol 1 Batarya 1 SOC: .1.3.6.1.4.1.1001.1.5.1.2 veya .1.3.6.1.4.1.1001.1.5.1.2.0
+--   Kol 1 Batarya 20 NTC2: .1.3.6.1.4.1.1001.1.5.20.5 veya .1.3.6.1.4.1.1001.1.5.20.5.0
+--   Kol 3 Batarya 40 Gerilim: .1.3.6.1.4.1.1001.3.5.40.1 veya .1.3.6.1.4.1.1001.3.5.40.1.0
+--
+-- STATUS DATA:
+--   Kol 1 Status: .1.3.6.1.4.1.1001.1.6.0 veya .1.3.6.1.4.1.1001.1.6.0.0
+--   Kol 1 Batarya 1 Status: .1.3.6.1.4.1.1001.1.6.1 veya .1.3.6.1.4.1.1001.1.6.1.0
+--   Kol 2 Batarya 5 Status: .1.3.6.1.4.1.1001.2.6.5 veya .1.3.6.1.4.1.1001.2.6.5.0
+--   Kol 3 Batarya 20 Status: .1.3.6.1.4.1.1001.3.6.20 veya .1.3.6.1.4.1.1001.3.6.20.0
+--
+-- ALARM DATA:
+--   Kol 1 Alarm: .1.3.6.1.4.1.1001.1.7.0 veya .1.3.6.1.4.1.1001.1.7.0.0
+--   Kol 1 Batarya 1 Alarm: .1.3.6.1.4.1.1001.1.7.1.1 veya .1.3.6.1.4.1.1001.1.7.1.1.0
+--   Kol 2 Batarya 5 Alarm: .1.3.6.1.4.1.1001.2.7.5.1 veya .1.3.6.1.4.1.1001.2.7.5.1.0
+--   Kol 3 Batarya 20 Alarm: .1.3.6.1.4.1.1001.3.7.20.1 veya .1.3.6.1.4.1.1001.3.7.20.1.0
+
+END
